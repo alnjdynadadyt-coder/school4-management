@@ -2,31 +2,65 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>تسجيل الحضور - اعدادية النجدين</title>
+    <title>تسجيل الحضور اليومي - اعدادية النجدين</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f4f7f6; }
-        .container { max-width: 500px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        input { padding: 15px; width: 80%; margin-bottom: 20px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; }
-        .btn-reg { padding: 15px; font-size: 16px; color: white; border: none; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 10px; }
-        #statusMsg { margin-bottom: 20px; font-weight: bold; padding: 10px; }
+        body { font-family: sans-serif; background: #f4f7f6; padding: 20px; text-align: center; }
+        .container { max-width: 480px; margin: 30px auto; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        h2 { color: #222; margin-bottom: 8px; font-size: 22px; }
+        #statusMsg { margin-bottom: 20px; font-weight: bold; padding: 12px; border-radius: 8px; font-size: 15px; }
+        
+        input { width: 100%; padding: 14px; margin-bottom: 18px; font-size: 18px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; text-align: center; outline: none; background: #fafafa; }
+        input:focus { border-color: #28a745; background: #fff; }
+        
+        .btn-reg { padding: 14px; font-size: 16px; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 8px; font-weight: bold; transition: 0.2s; }
+        .btn-reg:hover { opacity: 0.9; }
+        
+        /* بطاقة تفاصيل تسجيل الموظف التفاعلية */
+        .info-card { background: #f8f9fa; border: 1px solid #dcdcdc; border-radius: 10px; padding: 18px; margin-top: 20px; text-align: right; display: none; }
+        .info-card h3 { margin-top: 0; color: #007bff; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 18px; }
+        .info-row { display: flex; justify-content: space-between; margin: 10px 0; font-size: 15px; border-bottom: 1px dashed #eee; padding-bottom: 5px; }
+        .info-label { font-weight: bold; color: #444; }
+        .info-value { color: #111; font-weight: bold; }
     </style>
 </head>
 <body>
+
 <div class="container">
     <h2>تسجيل الحضور اليومي اعدادية النجدين</h2>
-    <div id="statusMsg">جاري التحقق من موقعك...</div>
+    <div id="statusMsg" style="background: #e2f0d9; color: #385723;">جاري التحقق من موقعك والدقة الجغرافية...</div>
+    
     <div id="regArea" style="display:none;">
         <input type="text" id="empCode" placeholder="أدخل كود الموظف">
         <button class="btn-reg" style="background:#28a745;" onclick="registerAttendance('attendance')">تسجيل الحضور</button>
         <button class="btn-reg" style="background:#6f42c1;" onclick="registerAttendance('exit')">تسجيل الانصراف</button>
     </div>
+
+    <!-- بطاقة عرض البيانات الفورية للموظف -->
+    <div id="employeeCard" class="info-card">
+        <h3 id="cardEmpName">---</h3>
+        <div class="info-row">
+            <span class="info-label">تاريخ اليوم:</span>
+            <span class="info-value" id="cardDate">---</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">وقت الحضور:</span>
+            <span class="info-value" id="cardTime">---</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">وقت الانصراف:</span>
+            <span class="info-value" id="cardExit">---</span>
+        </div>
+        <div class="info-row" style="border-bottom: none;">
+            <span class="info-label">الحالة:</span>
+            <span class="info-value" id="cardStatus" style="color: #28a745;">---</span>
+        </div>
+    </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDoc, doc, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDoc, doc, query, where, getDocs, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
-    // ربط المشروع الجديد school4-management
     const db = getFirestore(initializeApp({
         apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
         authDomain: "school4-management.firebaseapp.com",
@@ -37,8 +71,8 @@
         measurementId: "G-G89TZ8CC7Y"
     }));
 
-    // توقيت الحارس المحدث لكل الأيام
-    const getLimit = (type, dayIndex, timeInput) => {
+    // أوقات الدوام المحدثة حسب نوع الموظف
+    const getLimit = (type, timeInput) => {
         const [h, m] = timeInput.split(':').map(Number);
         const timeVal = h * 60 + m;
         if (type === "حارس") return (timeVal < 12 * 60) ? "07:10" : "17:10";
@@ -50,34 +84,47 @@
 
     let isLocationVerified = false;
 
-    // الإحداثيات الدقيقة للمدرسة
+    // إحداثيات المدرسة الدقيقة
     const SCHOOL_LAT = 31.7296172;
     const SCHOOL_LON = 44.9905462;
 
     navigator.geolocation.getCurrentPosition(pos => {
         const dist = 6371e3 * 2 * Math.atan2(Math.sqrt(Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2), Math.sqrt(1 - (Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2)));
+        
+        const msgDiv = document.getElementById('statusMsg');
         if (dist <= 1200) { 
             isLocationVerified = true; 
-            document.getElementById('statusMsg').innerText = "أهلاً بك، يمكنك التسجيل الآن."; 
+            msgDiv.style.background = "#e2f0d9";
+            msgDiv.style.color = "#385723";
+            msgDiv.innerText = "أهلاً بك، أنت ضمن النطاق المسموح. يمكنك التسجيل الآن."; 
             document.getElementById('regArea').style.display = "block"; 
-        } 
-        else { 
-            document.getElementById('statusMsg').innerText = "عذراً، أنت خارج نطاق المدرسة(المسافة: " + Math.round(dist) + " متر)."; 
+        } else { 
+            msgDiv.style.background = "#f8d7da";
+            msgDiv.style.color = "#721c24";
+            msgDiv.innerText = "عذراً، أنت خارج نطاق المدرسة (المسافة: " + Math.round(dist) + " متر)."; 
         }
-    }, () => alert("يرجى السماح بالوصول للموقع"), { enableHighAccuracy: true });
+    }, () => {
+        const msgDiv = document.getElementById('statusMsg');
+        msgDiv.style.background = "#f8d7da";
+        msgDiv.style.color = "#721c24";
+        alert("يرجى السماح بالوصول للموقع الجغرافي (GPS)");
+    }, { enableHighAccuracy: true });
 
     window.registerAttendance = async (action) => {
-        if (!isLocationVerified) return alert("الموقع غير مؤكد!");
-        const code = document.getElementById('empCode').value;
+        if (!isLocationVerified) return alert("الموقع غير مؤكد أو أنك خارج النطاق المسموح!");
+        
+        const code = document.getElementById('empCode').value.trim();
+        if (!code) return alert("يرجى إدخال كود الموظف أولاً!");
+
         const empSnap = await getDoc(doc(db, "employees", code));
-        if (!empSnap.exists()) return alert("كود خطأ!");
+        if (!empSnap.exists()) return alert("كود الموظف غير صحيح أو غير مسجل!");
         
         const empData = empSnap.data();
         const date = new Date().toISOString().split('T')[0];
-        const dayIndex = new Date().getDay();
         const now = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false});
+        const dayName = new Date().toLocaleDateString('ar-EG', {weekday: 'long'});
 
-        let status = (now > getLimit(empData.type, dayIndex, now)) ? "متأخر" : "حاضر";
+        let status = (now > getLimit(empData.type, now)) ? "متأخر" : "حاضر";
 
         let q;
         if (action === 'exit' && empData.type === "حارس") {
@@ -86,17 +133,76 @@
             q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", date));
         }
         
-        const snap = await getDocs(q);
-        
+        const snap = getDocs(q); // سيتم التعامل معها كـ Promise
+        const resolvedSnap = await snap;
+
+        let recTime = "---";
+        let recExit = "---";
+        let finalStatus = status;
+
         if (action === 'attendance') {
-            if (!snap.empty) return alert("سجلت سابقاً اليوم!");
-            await addDoc(collection(db, "attendance"), { empCode: code, name: empData.name, status, time: now, exitTime: "", date, day: new Date().toLocaleDateString('ar-EG', {weekday: 'long'}) });
-            alert("تم تسجيل الحضور كـ: " + status);
+            if (!resolvedSnap.empty) {
+                // إذا كان السجل موجوداً مسبقاً، نقوم بجلب بياناته وتحديث وقت الحضور إن أمكن
+                const existingDoc = resolvedSnap.docs[0];
+                recTime = now;
+                recExit = existingDoc.data().exitTime || "---";
+                finalStatus = existingDoc.data().status || status;
+                await updateDoc(doc(db, 'attendance', existingDoc.id), { time: now, status: status });
+            } else {
+                recTime = now;
+                await addDoc(collection(db, "attendance"), { 
+                    empCode: code, 
+                    name: empData.name, 
+                    status: status, 
+                    time: now, 
+                    exitTime: "", 
+                    date: date, 
+                    day: dayName,
+                    reason: "-"
+                });
+            }
+            alert("تم تسجيل الحضور بنجاح كـ: " + status);
         } else {
-            if (snap.empty) return alert("لم يتم العثور على سجل حضور مفتوح!");
-            await setDoc(doc(db, 'attendance', snap.docs[0].id), { exitTime: now }, { merge: true });
-            alert("تم تسجيل الانصراف!");
+            // انصراف
+            if (resolvedSnap.empty) {
+                // إذا لم يكن هناك سجل حضور لليوم، نقوم بإنشاء سجل انصراف مباشر
+                const newDocRef = await addDoc(collection(db, "attendance"), { 
+                    empCode: code, 
+                    name: empData.name, 
+                    status: "منصرف", 
+                    time: "---", 
+                    exitTime: now, 
+                    date: date, 
+                    day: dayName,
+                    reason: "-"
+                });
+                recExit = now;
+            } else {
+                const docId = resolvedSnap.docs[0].id;
+                const existingData = resolvedSnap.docs[0].data();
+                recTime = existingData.time || "---";
+                recExit = now;
+                finalStatus = existingData.status || "حاضر";
+                await setDoc(doc(db, 'attendance', docId), { exitTime: now }, { merge: true });
+            }
+            alert("تم تسجيل الانصراف بنجاح!");
         }
+
+        // تحديث البطاقة التفاعلية فورياً لتظهر للموظف أمام عينيه
+        document.getElementById('cardEmpName').innerText = empData.name;
+        document.getElementById('cardDate').innerText = date;
+        document.getElementById('cardTime').innerText = recTime;
+        document.getElementById('cardExit').innerText = recExit;
+        document.getElementById('cardStatus').innerText = finalStatus;
+
+        const statusEl = document.getElementById('cardStatus');
+        if (finalStatus === "متأخر") {
+            statusEl.style.color = "#d9534f";
+        } else {
+            statusEl.style.color = "#28a745";
+        }
+
+        document.getElementById('employeeCard').style.display = "block";
     };
 </script>
 </body>
