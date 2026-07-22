@@ -44,7 +44,7 @@
             border: 1px solid #e1e1e1;
         }
         button {
-            padding: 9px 14px;
+            padding: 10px 16px;
             border: none;
             border-radius: 6px;
             cursor: pointer;
@@ -59,8 +59,6 @@
         .btn-nocheck { background-color: #d35400; }
         .btn-excel { background-color: #27ae60; }
         .btn-pdf { background-color: #2980b9; }
-        .btn-backup { background-color: #7f8c8d; }
-        .btn-import { background-color: #e67e22; }
 
         .stats-bar {
             display: flex;
@@ -97,6 +95,7 @@
     <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
     <h2>📊 تقارير الحضور والغياب اليومية</h2>
 
+    <!-- أزرار التحكم والفلترة بدون نسخ احتياطي أو استيراد -->
     <div class="controls-box">
         <input type="date" id="reportDate" style="padding: 7px; border-radius: 5px; border: 1px solid #bdc3c7;" onchange="renderReport()">
         <button class="btn-daily" onclick="renderReport()">عرض الكل</button>
@@ -104,11 +103,9 @@
         <button class="btn-nocheck" onclick="filterNoCheckout()">لم يسجلوا الانصراف</button>
         <button class="btn-excel" onclick="exportExcel()">تصدير Excel</button>
         <button class="btn-pdf" onclick="window.print()">تصدير PDF</button>
-        <button class="btn-backup" onclick="exportBackup()">نسخة احتياطية</button>
-        <button class="btn-import" onclick="document.getElementById('importFile').click()">استيراد</button>
-        <input type="file" id="importFile" style="display:none" onchange="importBackup(event)">
     </div>
 
+    <!-- شريط الإحصائيات -->
     <div class="stats-bar" id="statsBar">
         <span id="statPresent">إجمالي الحضور: 0</span>
         <span id="statLate">المتأخرين: 0</span>
@@ -116,6 +113,7 @@
         <span id="statAbsent">الغائبين: 0</span>
     </div>
 
+    <!-- جدول عرض البيانات -->
     <table>
         <thead>
             <tr>
@@ -142,40 +140,70 @@
         const tbody = document.getElementById('reportTableBody');
         tbody.innerHTML = '';
 
-        // البحث في كافة المفاتيح المحتملة للتخزين المحلي لضمان جلب البيانات بدقة
-        let allRecords = JSON.parse(localStorage.getItem('attendanceRecords') || localStorage.getItem('attendance') || '[]');
-        
-        // تصفية السجلات حسب التاريخ أو جلب الكل إن لم يوجد تقييد بالتاريخ
-        let filteredRecords = allRecords.filter(rec => rec.date === selectedDate);
-        if (filteredRecords.length === 0 && allRecords.length > 0) {
-            filteredRecords = allRecords; // عرض المتاح لتجنب الفراغ إذا اختلاف تنسيق التاريخ
-        }
+        // جلب قائمة الموظفين الأساسية وسجلات الحضور
+        const employees = JSON.parse(localStorage.getItem('employees') || localStorage.getItem('employeesList') || '[]');
+        const attendance = JSON.parse(localStorage.getItem('attendanceRecords') || localStorage.getItem('attendance') || '[]');
 
         let presentCount = 0, lateCount = 0, leaveCount = 0, absentCount = 0;
 
-        if (filteredRecords.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="color: #7f8c8d; padding: 20px;">لا توجد سجلات حضور مسجلة لهذا التاريخ</td></tr>`;
-        } else {
-            filteredRecords.forEach(rec => {
-                const status = rec.status || '';
-                if (status.includes("حاضر")) presentCount++;
-                else if (status.includes("متأخر")) lateCount++;
-                else if (status.includes("مجاز")) leaveCount++;
-                else if (status.includes("غائب") || status.includes("لم يتم")) absentCount++;
-                else presentCount++; // افتراضي
-
-                let row = `<tr>
-                    <td>${rec.code || '-'}</td>
-                    <td><b>${rec.name || 'مستخدم'}</b></td>
-                    <td>${rec.category || 'موظف'}</td>
-                    <td>${rec.timeIn || rec.time || '-'}</td>
-                    <td>${rec.timeOut || '-'}</td>
-                    <td><span style="color: ${status.includes('غائب') ? '#c0392b' : '#27ae60'}; font-weight: bold;">${status || 'حاضر'}</span></td>
-                    <td>${rec.note || rec.reason || '-'}</td>
-                </tr>`;
-                tbody.innerHTML += row;
-            });
+        if (employees.length === 0 && attendance.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="color: #7f8c8d; padding: 20px;">لا توجد بيانات مسجلة في النظام حالياً</td></tr>`;
+            return;
         }
+
+        // دمج الموظفين مع سجلات الحضور الخاصة بالتاريخ المحدد
+        let displayList = [];
+
+        if (employees.length > 0) {
+            employees.forEach(emp => {
+                const record = attendance.find(a => (a.code == emp.code || a.name == emp.name) && a.date === selectedDate);
+                if (record) {
+                    displayList.push(record);
+                } else {
+                    // إذا لم يتم تسجيله في هذا اليوم يعتبر غائباً افتراضياً أو لم يسجل
+                    displayList.push({
+                        code: emp.code || '-',
+                        name: emp.name,
+                        category: emp.category || emp.job || 'موظف',
+                        timeIn: '-',
+                        timeOut: '-',
+                        status: 'غائب',
+                        note: 'لم يتم تسجيل الحضور'
+                    });
+                }
+            });
+        } else {
+            // إذا وُجدت سجلات حضور مباشرة بدون قائمة موظفين منفصلة
+            displayList = attendance.filter(a => a.date === selectedDate);
+        }
+
+        if (displayList.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="color: #7f8c8d; padding: 20px;">لا توجد سجلات لهذا التاريخ</td></tr>`;
+            return;
+        }
+
+        displayList.forEach(rec => {
+            const status = rec.status || 'غائب';
+            if (status.includes("حاضر")) presentCount++;
+            else if (status.includes("متأخر")) lateCount++;
+            else if (status.includes("مجاز")) leaveCount++;
+            else absentCount++;
+
+            let statusColor = '#27ae60';
+            if (status.includes("غائب") || status.includes("لم يتم")) statusColor = '#c0392b';
+            else if (status.includes("متأخر")) statusColor = '#d35400';
+
+            let row = `<tr>
+                <td>${rec.code || '-'}</td>
+                <td><b>${rec.name || 'مستخدم'}</b></td>
+                <td>${rec.category || 'موظف'}</td>
+                <td>${rec.timeIn || '-'}</td>
+                <td>${rec.timeOut || '-'}</td>
+                <td><span style="color: ${statusColor}; font-weight: bold;">${status}</span></td>
+                <td>${rec.note || rec.reason || '-'}</td>
+            </tr>`;
+            tbody.innerHTML += row;
+        });
 
         document.getElementById('statPresent').innerText = `إجمالي الحضور: ${presentCount + lateCount}`;
         document.getElementById('statLate').innerText = `المتأخرين: ${lateCount}`;
@@ -205,38 +233,7 @@
     }
 
     function exportExcel() {
-        alert("جاري تصدير التقارير إلى Excel...");
-    }
-
-    function exportBackup() {
-        const backup = {
-            data: localStorage.getItem('attendanceRecords') || localStorage.getItem('attendance'),
-            date: new Date().toISOString()
-        };
-        const blob = new Blob([JSON.stringify(backup, null, 2)], {type: "application/json"});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `school_backup_${new Date().toISOString().slice(0,10)}.json`;
-        a.click();
-    }
-
-    function importBackup(event) {
-        const reader = new FileReader();
-        if (event.target.files.length === 0) return;
-        reader.readAsText(event.target.files[0], "UTF-8");
-        reader.onload = function(e) {
-            try {
-                const parsed = JSON.parse(e.target.result);
-                if (parsed.data) {
-                    localStorage.setItem('attendanceRecords', parsed.data);
-                    alert("تم الاستعادة بنجاح!");
-                    renderReport();
-                }
-            } catch (err) {
-                alert("ملف غير صالح!");
-            }
-        }
+        alert("جاري تصدير الجدول إلى ملف Excel...");
     }
 
     window.onload = renderReport;
