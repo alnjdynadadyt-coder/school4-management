@@ -6,11 +6,16 @@
     <style>
         body { font-family: sans-serif; padding: 20px; background: #eef2f3; text-align: center; }
         .container { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .btn-nav { display: block; width: 100%; padding: 15px; margin: 10px 0; font-size: 18px; color: white; border: none; border-radius: 8px; cursor: pointer; text-decoration: none; box-sizing: border-box; }
+        .btn-nav { display: block; width: 100%; padding: 15px; margin: 10px 0; font-size: 18px; color: white; border: none; border-radius: 8px; cursor: pointer; text-decoration: none; box-sizing: border-box; font-weight: bold; }
         .btn-quick { background: #28a745; }
         .btn-manual { background: #007bff; }
         .btn-emps { background: #6c757d; }
-        .btn-reports { background: #ffc107; color: #333; font-weight: bold; }
+        .btn-reports { background: #ffc107; color: #333; }
+        
+        .external-box { margin-top: 25px; background: #e8f4fd; padding: 15px; border-radius: 8px; border: 1px solid #b8daff; text-align: center; }
+        .external-box input { width: 55%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; direction: ltr; text-align: left; font-size: 13px; }
+        .external-box button { background: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .external-box a { background: #28a745; color: white; text-decoration: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; font-size: 13px; display: inline-block; }
     </style>
 </head>
 <body>
@@ -24,7 +29,32 @@
     <a href="manual.html" class="btn-nav btn-manual">📝 التسجيل اليدوي المفصل</a>
     <a href="employees.html" class="btn-nav btn-emps">👥 إدارة الموظفين (إضافة وتعديل)</a>
     <a href="reports.html" class="btn-nav btn-reports">📊 الحضور، الغياب والتقارير</a>
+
+    <!-- قسم رابط التسجيل الخارجي للموظفين -->
+    <div class="external-box">
+        <h4 style="margin-top: 0; color: #004085;">🔗 رابط تسجيل الحضور الخارجي للموظفين</h4>
+        <p style="font-size: 12px; color: #333; margin-bottom: 10px;">انسخ الرابط أدناه وأرسله للموظفين:</p>
+        <div style="display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap;">
+            <input type="text" id="externalLink" readonly value="">
+            <button onclick="copyLink()">نسخ الرابط</button>
+            <a id="openLinkBtn" href="#" target="_blank">فتح الصفحة</a>
+        </div>
+    </div>
 </div>
+
+<script>
+    let currentBase = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+    let regUrl = currentBase + "register.html";
+    document.getElementById('externalLink').value = regUrl;
+    document.getElementById('openLinkBtn').href = regUrl;
+
+    window.copyLink = () => {
+        let copyText = document.getElementById("externalLink");
+        copyText.select();
+        navigator.clipboard.writeText(copyText.value);
+        alert("تم نسخ رابط التسجيل الخارجي بنجاح!");
+    }
+</script>
 
 </body>
 </html>
