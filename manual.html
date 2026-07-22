@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>التسجيل اليدوي - اعدادية النجدين</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; background: #f8f9fa; padding: 15px; border-radius: 8px; }
+        input, select, button { padding: 10px; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        th { background-color: #007bff; color: white; }
+        .btn-del { background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; }
+        .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
+    <h2 style="color:#007bff; text-align:center;">📝 التسجيل اليدوي المفصل للحضور</h2>
+    
+    <div class="input-group">
+        <input type="date" id="dateSelector" onchange="renderTable()">
+        <input type="text" id="empCode" placeholder="كود الموظف">
+        <select id="status">
+            <option>حاضر</option>
+            <option>متأخر</option>
+            <option>مجاز</option>
+            <option>غائب</option>
+        </select>
+        <input type="text" id="reason" placeholder="سبب الغياب أو الملاحظة">
+        <input type="time" id="customTime">
+        <button onclick="registerAttendance()" style="background:#007bff; color:white; font-weight:bold;">تسجيل يدوي</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>الاسم</th><th>اليوم</th><th>التاريخ</th><th>الحضور</th><th>الانصراف</th><th>الحالة</th><th>السبب</th><th>إجراء</th></tr>
+        </thead>
+        <tbody id="attendanceTable"></tbody>
+    </table>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getFirestore, collection, doc, getDoc, addDoc, setDoc, deleteDoc, query, where, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+    const db = getFirestore(initializeApp({
+        apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
+        authDomain: "school4-management.firebaseapp.com",
+        projectId: "school4-management",
+        storageBucket: "school4-management.firebasestorage.app",
+        messagingSenderId: "157481747196",
+        appId: "1:157481747196:web:ee4958d9589b8d01464d79",
+        measurementId: "G-G89TZ8CC7Y"
+    }));
+
+    document.getElementById('dateSelector').valueAsDate = new Date();
+    document.getElementById('customTime').value = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false});
+
+    const getLimit = (type, dayIndex, timeInput) => {
+        const [h, m] = timeInput.split(':').map(Number);
+        const timeVal = h * 60 + m;
+        if (type === "حارس") return (timeVal < 12 * 60) ? "07:10" : "17:10";
+        if (type === "موظف") return (timeVal < 11 * 60) ? "07:10" : "12:10";
+        if (type === "إداري") return "07:40";
+        if (type === "مدرس") return "08:10";
+        return "08:10";
+    };
+
+    window.renderTable = () => {
+        const date = document.getElementById('dateSelector').value;
+        onSnapshot(query(collection(db, "attendance"), where("date", "==", date)), snap => {
+            let rows = "";
+            snap.forEach(d => {
+                let data = d.data();
+                rows += `<tr>
+                    <td>${data.name}</td>
+                    <td>${data.day}</td>
+                    <td>${data.date}</td>
+                    <td>${data.time}</td>
+                    <td><input type="time" onchange="updateExitTime('${d.id}', this.value)" value="${data.exitTime || ''}"></td>
+                    <td>${data.status}</td>
+                    <td>${data.reason || ''}</td>
+                    <td><button class="btn-del" onclick="deleteAtt('${d.id}')">حذف</button></td>
+                </tr>`;
+            });
+            document.getElementById('attendanceTable').innerHTML = rows;
+        });
+    };
+
+    window.updateExitTime = async (id, time) => { 
+        await setDoc(doc(db, 'attendance', id), { exitTime: time }, { merge: true }); 
+    };
+
+    window.registerAttendance = async () => {
+        const code = document.getElementById('empCode').value.trim();
+        const date = document.getElementById('dateSelector').value;
+        const statusRaw = document.getElementById('status').value;
+        const timeInput = document.getElementById('customTime').value;
+        const reason = document.getElementById('reason').value;
+        const dayIndex = new Date(date).getDay();
+
+        if(!code) { alert("يرجى إدخال كود الموظف"); return; }
+
+        const empSnap = await getDoc(doc(db, "employees", code));
+        if (!empSnap.exists()) { alert("الكود غير موجود في قائمة الموظفين!"); return; }
+        
+        const empData = empSnap.data();
+        let status = statusRaw;
+        if (status === "حاضر") {
+            status = (timeInput > getLimit(empData.type, dayIndex, timeInput)) ? "متأخر" : "حاضر";
+        }
+        
+        const q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", date));
+        if (!(await getDocs(q)).empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
+        
+        await addDoc(collection(db, "attendance"), { 
+            empCode: code, 
+            name: empData.name, 
+            status, 
+            time: (status === "غائب" || status === "مجاز") ? "-" : timeInput, 
+            exitTime: "", 
+            date, 
+            day: new Date(date).toLocaleDateString('ar-EG', {weekday: 'long'}), 
+            reason: reason 
+        });
+        
+        alert("تم التسجيل بنجاح كـ: " + status);
+        document.getElementById('empCode').value = '';
+        document.getElementById('reason').value = '';
+    };
+
+    window.deleteAtt = (id) => deleteDoc(doc(db, 'attendance', id));
+
+    renderTable();
+</script>
+</body>
+</html>
