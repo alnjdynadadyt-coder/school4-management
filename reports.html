@@ -132,56 +132,49 @@
             </tr>
         </thead>
         <tbody id="reportTableBody">
-            <!-- سيتم تعبئة البيانات تلقائياً هنا -->
+            <!-- سيتم تعبئة البيانات الحقيقية هنا -->
         </tbody>
     </table>
 </div>
 
 <script>
+    // تعيين تاريخ اليوم افتراضياً
     document.getElementById('reportDate').valueAsDate = new Date();
-
-    function getStoredData() {
-        // جلب السجلات المخزنة من التسجيل اليدوي أو السريع
-        const attendance = JSON.parse(localStorage.getItem('attendanceRecords') || '[]');
-        const employees = JSON.parse(localStorage.getItem('employeesList') || '[]');
-        return { attendance, employees };
-    }
 
     function renderReport() {
         const selectedDate = document.getElementById('reportDate').value;
         const tbody = document.getElementById('reportTableBody');
         tbody.innerHTML = '';
 
-        // افتراض بيانات تجريبية مطابقة لما أدخلته في الصور إذا لم توجد بيانات سابقة
-        let records = JSON.parse(localStorage.getItem('attendanceRecords') || 'null');
-        if (!records) {
-            records = [
-                { code: 1, name: "علي", category: "مدرس", date: selectedDate, timeIn: "18:31", timeOut: "-", status: "متأخر", note: "" },
-                { code: 2, name: "يحيى", category: "موظف", date: selectedDate, timeIn: "18:31", timeOut: "-", status: "متأخر", note: "" },
-                { code: 3, name: "طياره", category: "إداري", date: selectedDate, timeIn: "18:31", timeOut: "-", status: "متأخر", note: "" },
-                { code: 4, name: "رسول", category: "حارس", date: selectedDate, timeIn: "18:31", timeOut: "-", status: "متأخر", note: "" }
-            ];
-        }
+        // جلب البيانات الفعلية المخزنة من صفحة التسجيل اليدوي
+        const allRecords = JSON.parse(localStorage.getItem('attendanceRecords') || '[]');
+        
+        // تصفية السجلات حسب التاريخ المحدد في حقل البحث
+        const filteredRecords = allRecords.filter(rec => rec.date === selectedDate);
 
         let presentCount = 0, lateCount = 0, leaveCount = 0, absentCount = 0;
 
-        records.forEach(rec => {
-            if (rec.status.includes("حاضر")) presentCount++;
-            if (rec.status.includes("متأخر")) lateCount++;
-            if (rec.status.includes("مجاز")) leaveCount++;
-            if (rec.status.includes("غائب") || rec.status.includes("لم يتم")) absentCount++;
+        if (filteredRecords.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="color: #7f8c8d; padding: 20px;">لا توجد سجلات حضور مسجلة لهذا التاريخ</td></tr>`;
+        } else {
+            filteredRecords.forEach(rec => {
+                if (rec.status && rec.status.includes("حاضر")) presentCount++;
+                if (rec.status && rec.status.includes("متأخر")) lateCount++;
+                if (rec.status && rec.status.includes("مجاز")) leaveCount++;
+                if (rec.status && (rec.status.includes("غائب") || rec.status.includes("لم يتم"))) absentCount++;
 
-            let row = `<tr>
-                <td>${rec.code}</td>
-                <td><b>${rec.name}</b></td>
-                <td>${rec.category}</td>
-                <td>${rec.timeIn}</td>
-                <td>${rec.timeOut}</td>
-                <td><span style="color: ${rec.status.includes('غائب') ? '#c0392b' : '#d35400'}; font-weight: bold;">${rec.status}</span></td>
-                <td>${rec.note || '-'}</td>
-            </tr>`;
-            tbody.innerHTML += row;
-        });
+                let row = `<tr>
+                    <td>${rec.code || '-'}</td>
+                    <td><b>${rec.name}</b></td>
+                    <td>${rec.category || 'موظف'}</td>
+                    <td>${rec.timeIn || '-'}</td>
+                    <td>${rec.timeOut || '-'}</td>
+                    <td><span style="color: ${rec.status && rec.status.includes('غائب') ? '#c0392b' : '#d35400'}; font-weight: bold;">${rec.status || '-'}</span></td>
+                    <td>${rec.note || '-'}</td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+        }
 
         document.getElementById('statPresent').innerText = `إجمالي الحضور: ${presentCount + lateCount}`;
         document.getElementById('statLate').innerText = `المتأخرين: ${lateCount}`;
@@ -192,22 +185,29 @@
     function filterTable(type) {
         const rows = document.querySelectorAll("#reportTableBody tr");
         rows.forEach(row => {
-            const status = row.querySelector("td:nth-child(6)").innerText;
-            row.style.display = status.includes(type) ? "" : "none";
+            const statusCell = row.querySelector("td:nth-child(6)");
+            if (statusCell) {
+                const status = statusCell.innerText;
+                row.style.display = status.includes(type) ? "" : "none";
+            }
         });
     }
 
     function filterNoCheckout() {
         const rows = document.querySelectorAll("#reportTableBody tr");
         rows.forEach(row => {
-            const timeOut = row.querySelector("td:nth-child(5)").innerText;
-            const status = row.querySelector("td:nth-child(6)").innerText;
-            row.style.display = (timeOut === "-" && !status.includes("غائب")) ? "" : "none";
+            const timeOutCell = row.querySelector("td:nth-child(5)");
+            const statusCell = row.querySelector("td:nth-child(6)");
+            if (timeOutCell && statusCell) {
+                const timeOut = timeOutCell.innerText;
+                const status = statusCell.innerText;
+                row.style.display = (timeOut === "-" && !status.includes("غائب")) ? "" : "none";
+            }
         });
     }
 
     function exportExcel() {
-        alert("جاري تصدير الجدول الحالي إلى ملف Excel...");
+        alert("جاري تجهيز جدول التقارير للتصدير إلى Excel...");
     }
 
     function exportBackup() {
@@ -241,7 +241,6 @@
         }
     }
 
-    // تشغيل التقرير عند فتح الصفحة
     window.onload = renderReport;
 </script>
 
