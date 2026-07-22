@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>تقارير الموظف المتقدمة - اعدادية النجدين</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f7f6; text-align: center; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .filter-box { background: #fffdf5; padding: 20px; border-radius: 8px; border: 1px solid #ffeeba; margin-bottom: 20px; display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
+        input, select { padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 5px; width: 220px; }
+        .btn { padding: 10px 20px; font-size: 14px; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-search { background: #28a745; }
+        .btn-excel { background: #17a2b8; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; font-size: 14px; text-align: center; }
+        th { background: #007bff; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="color: #333;">تقارير متقدمة</h2>
+    
+    <div class="filter-box">
+        <div>
+            <label style="display:block; font-size:12px; margin-bottom:3px; text-align:right;">من تاريخ:</label>
+            <input type="date" id="startDate">
+        </div>
+        <div>
+            <label style="display:block; font-size:12px; margin-bottom:3px; text-align:right;">إلى تاريخ:</label>
+            <input type="date" id="endDate">
+        </div>
+        <div>
+            <label style="display:block; font-size:12px; margin-bottom:3px; text-align:right;">كود الموظف:</label>
+            <input type="text" id="empCodeFilter" placeholder="أدخل كود الموظف">
+        </div>
+        <div style="margin-top: 18px;">
+            <button class="btn btn-search" onclick="fetchAdvancedReport()">عرض التقرير</button>
+            <button class="btn btn-excel" onclick="exportToExcel()">تصدير التقرير لـ Excel</button>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>الاسم</th>
+                <th>التاريخ</th>
+                <th>الحضور</th>
+                <th>الانصراف</th>
+                <th>الحالة</th>
+                <th>السبب</th>
+            </tr>
+        </thead>
+        <tbody id="reportTableBody">
+            <tr><td colspan="6" style="color: #777;">قم بتحديد الفترة وكود الموظف ثم اضغط عرض التقرير</td></tr>
+        </tbody>
+    </table>
+
+    <br>
+    <a href="index.html" style="color: #007bff; text-decoration: none; font-weight: bold;">← العودة لوحة التحكم الرئيسية</a>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+    const db = getFirestore(initializeApp({
+        apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
+        authDomain: "school4-management.firebaseapp.com",
+        projectId: "school4-management",
+        storageBucket: "school4-management.firebasestorage.app",
+        messagingSenderId: "157481747196",
+        appId: "1:157481747196:web:ee4958d9589b8d01464d79",
+        measurementId: "G-G89TZ8CC7Y"
+    }));
+
+    window.fetchAdvancedReport = async () => {
+        const start = document.getElementById('startDate').value;
+        const end = document.getElementById('endDate').value;
+        const code = document.getElementById('empCodeFilter').value.trim();
+
+        if (!code) {
+            alert("يرجى إدخال كود الموظف أولاً!");
+            return;
+        }
+
+        const tbody = document.getElementById('reportTableBody');
+        tbody.innerHTML = `<tr><td colspan="6">جاري البحث...</td></tr>`;
+
+        try {
+            const q = query(collection(db, "attendance"), where("empCode", "==", code));
+            const snapshot = await getDocs(q);
+            
+            tbody.innerHTML = "";
+            let rowsHtml = "";
+
+            snapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                // فلترة التاريخ إذا تم تحديدهما
+                if (start && data.date < start) return;
+                if (end && data.date > end) return;
+
+                rowsHtml += `
+                    <tr>
+                        <td>${data.name || '---'}</td>
+                        <td>${data.date || '---'}</td>
+                        <td>${data.time || '---'}</td>
+                        <td>${data.exitTime || '---'}</td>
+                        <td>${data.status || '---'}</td>
+                        <td>${data.reason || '-'}</td>
+                    </tr>
+                `;
+            });
+
+            if (rowsHtml === "") {
+                tbody.innerHTML = `<tr><td colspan="6" style="color:red;">لا توجد سجلات مطابقة ضمن هذه الفترة!</td></tr>`;
+            } else {
+                tbody.innerHTML = rowsHtml;
+            }
+        } catch (error) {
+            console.error(error);
+            alert("حدث خطأ أثناء جلب البيانات.");
+        }
+    };
+
+    window.exportToExcel = () => {
+        let table = document.querySelector("table");
+        let html = table.outerHTML.replace(/ /g, '%20');
+        let blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = 'advanced_attendance_report.xls';
+        a.click();
+    };
+</script>
+</body>
+</html>
