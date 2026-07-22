@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>التسجيل السريع - اعدادية النجدين</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .search-box { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
+        th { background-color: #28a745; color: white; }
+        .btn-quick { background: #28a745; color: white; padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .btn-exit { background: #6f42c1; color: white; padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
+    <h2 style="color:#28a745; text-align:center;">⚡ لوحة التسجيل السريع للأسماء</h2>
+    
+    <!-- حقل البحث الفوري لتصفية الأسماء -->
+    <input type="text" id="searchEmp" class="search-box" placeholder="🔍 ابحث عن اسم الموظف لتسجيله بسرعة..." onkeyup="filterTable()">
+
+    <table id="quickTable">
+        <thead>
+            <tr><th>الاسم</th><th>التصنيف</th><th>إجراءات الحضور والانصراف</th></tr>
+        </thead>
+        <tbody id="quickAttendanceTable"></tbody>
+    </table>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, where } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+    const db = getFirestore(initializeApp({
+        apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
+        authDomain: "school4-management.firebaseapp.com",
+        projectId: "school4-management",
+        storageBucket: "school4-management.firebasestorage.app",
+        messagingSenderId: "157481747196",
+        appId: "1:157481747196:web:ee4958d9589b8d01464d79",
+        measurementId: "G-G89TZ8CC7Y"
+    }));
+
+    const getLimit = (type, dayIndex, timeInput) => {
+        const [h, m] = timeInput.split(':').map(Number);
+        const timeVal = h * 60 + m;
+        if (type === "حارس") return (timeVal < 12 * 60) ? "07:10" : "17:10";
+        if (type === "موظف") return (timeVal < 11 * 60) ? "07:10" : "12:10";
+        if (type === "إداري") return "07:40";
+        if (type === "مدرس") return "08:10";
+        return "08:10";
+    };
+
+    window.quickAction = async (code, name, type, action) => {
+        const date = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const timeInput = now.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false});
+        const dayIndex = now.getDay();
+        
+        let q;
+        if (action === 'exit' && type === "حارس") {
+            q = query(collection(db, "attendance"), where("empCode", "==", code), where("exitTime", "==", ""));
+        } else {
+            q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", date));
+        }
+        
+        const snap = await getDocs(q);
+        if (action === 'attendance') {
+            if (!snap.empty) { alert("الموظف مسجل بالفعل!"); return; }
+            let status = (timeInput > getLimit(type, dayIndex, timeInput)) ? "متأخر" : "حاضر";
+            await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: timeInput, exitTime: "", date, day: now.toLocaleDateString('ar-EG', {weekday: 'long'}), reason: "" });
+            alert("تم تسجيل حضور: " + name);
+        } else {
+            if (snap.empty) { alert("لم يتم تسجيل الحضور بعد!"); return; }
+            await setDoc(doc(db, 'attendance', snap.docs[0].id), { exitTime: timeInput }, { merge: true });
+            alert("تم تسجيل انصراف: " + name);
+        }
+    };
+
+    // جلب الموظفين وعرضهم مع خاصية البحث الفوري
+    let allEmployees = [];
+    async function loadEmployees() {
+        const snap = await getDocs(collection(db, "employees"));
+        allEmployees = [];
+        snap.forEach(d => {
+            allEmployees.push({ id: d.id, ...d.data() });
+        });
+        renderList(allEmployees);
+    }
+
+    function renderList(list) {
+        let qRows = "";
+        list.forEach(data => {
+            qRows += `<tr>
+                <td style="font-weight:bold; font-size:16px;">${data.name}</td>
+                <td>${data.type}</td>
+                <td>
+                    <button class="btn-quick" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'attendance')">حضور</button>
+                    <button class="btn-exit" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'exit')">انصراف</button>
+                </td>
+            </tr>`;
+        });
+        document.getElementById('quickAttendanceTable').innerHTML = qRows;
+    }
+
+    window.filterTable = () => {
+        const searchVal = document.getElementById('searchEmp').value.toLowerCase();
+        const filtered = allEmployees.filter(e => e.name.toLowerCase().includes(searchVal));
+        renderList(filtered);
+    };
+
+    loadEmployees();
+</script>
+</body>
+</html>
