@@ -7,12 +7,26 @@
         body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
         .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .input-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; background: #fff3cd; padding: 15px; border-radius: 8px; align-items: center; }
-        input, button { padding: 10px; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        input, button { padding: 10px; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        button { color: white; border: none; }
+        .btn-show { background: #ffc107; color: #333; }
+        .btn-absent { background: #dc3545; }
+        .btn-nocheck { background: #fd7e14; }
+        .btn-all { background: #6c757d; }
+        .btn-excel { background: #28a745; }
+        .btn-pdf { background: #17a2b8; }
+        
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background-color: #ffc107; color: #333; }
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
         .stats { display: flex; gap: 15px; margin-bottom: 15px; font-weight: bold; justify-content: space-around; background: #f8f9fa; padding: 10px; border-radius: 5px; }
+
+        @media print {
+            .input-group, .back-link, button { display: none !important; }
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; padding: 0; }
+        }
     </style>
 </head>
 <body>
@@ -23,8 +37,12 @@
     
     <div class="input-group">
         <label>اختر تاريخ التقرير:</label>
-        <input type="date" id="reportDate" onchange="generateReport()">
-        <button onclick="generateReport()" style="background:#ffc107; font-weight:bold; border:none;">عرض التقرير</button>
+        <input type="date" id="reportDate" onchange="generateReport()" style="background: white; font-weight: normal;">
+        <button class="btn-show" onclick="generateReport()">عرض الكل</button>
+        <button class="btn-absent" onclick="filterTable('غائب')">كشف المتغيبين</button>
+        <button class="btn-nocheck" onclick="filterNoExit()">لم يسجلوا الانصراف</button>
+        <button class="btn-excel" onclick="exportExcel()">تصدير Excel</button>
+        <button class="btn-pdf" onclick="window.print()">تصدير PDF</button>
     </div>
 
     <div class="stats" id="statsBox">
@@ -36,9 +54,19 @@
 
     <table>
         <thead>
-            <tr><th>الكود</th><th>الاسم</th><th>التصنيف</th><th>وقت الحضور</th><th>وقت الانصراف</th><th>الحالة</th><th>السبب / ملاحظات</th></tr>
+            <tr>
+                <th>الكود</th>
+                <th>الاسم</th>
+                <th>التصنيف</th>
+                <th>وقت الحضور</th>
+                <th>وقت الانصراف</th>
+                <th>الحالة</th>
+                <th>السبب / ملاحظات</th>
+            </tr>
         </thead>
-        <tbody id="reportTable"></tbody>
+        <tbody id="reportTable">
+            <tr><td colspan="7" style="color: #6c757d;">جاري تحميل البيانات من النظام...</td></tr>
+        </tbody>
     </table>
 </div>
 
@@ -58,27 +86,46 @@
 
     document.getElementById('reportDate').valueAsDate = new Date();
 
+    let cachedEmployees = {};
+    let cachedAttendance = {};
+
     window.generateReport = async () => {
         const date = document.getElementById('reportDate').value;
+        const tbody = document.getElementById('reportTable');
+        tbody.innerHTML = `<tr><td colspan="7">جاري جلب البيانات...</td></tr>`;
         
-        // 1. جلب كل الموظفين الأساسيين
-        const empSnap = await getDocs(collection(db, "employees"));
-        let employees = {};
-        empSnap.forEach(d => { employees[d.id] = { id: d.id, ...d.data() }; });
+        try {
+            // 1. جلب كل الموظفين الأساسيين
+            const empSnap = await getDocs(collection(db, "employees"));
+            cachedEmployees = {};
+            empSnap.forEach(d => { cachedEmployees[d.id] = { id: d.id, ...d.data() }; });
 
-        // 2. جلب الحضور المسجل لهذا اليوم
-        const attQuery = query(collection(db, "attendance"), where("date", "==", date));
-        const attSnap = await getDocs(attQuery);
-        let attendanceMap = {};
-        attSnap.forEach(d => { 
-            let data = d.data();
-            attendanceMap[data.empCode] = data; 
-        });
+            // 2. جلب الحضور المسجل لهذا اليوم
+            const attQuery = query(collection(db, "attendance"), where("date", "==", date));
+            const attSnap = await getDocs(attQuery);
+            cachedAttendance = {};
+            attSnap.forEach(d => { 
+                let data = d.data();
+                cachedAttendance[data.empCode] = data; 
+            });
 
+            renderTableRows(cachedEmployees, cachedAttendance);
+
+        } catch (error) {
+            console.error(error);
+            tbody.innerHTML = `<tr><td colspan="7" style="color:red;">حدث خطأ أثناء جلب البيانات من القاعدة</td></tr>`;
+        }
+    };
+
+    function renderTableRows(employees, attendanceMap) {
         let rows = "";
         let pCount = 0, lCount = 0, lvCount = 0, aCount = 0;
 
-        // 3. مطابقة الموظفين مع حالة الحضور أو اعتبارهم غائبين افتراضياً
+        if (Object.keys(employees).length === 0) {
+            document.getElementById('reportTable').innerHTML = `<tr><td colspan="7">لا توجد بيانات موظفين مسجلة في النظام</td></tr>`;
+            return;
+        }
+
         for (let code in employees) {
             let emp = employees[code];
             let record = attendanceMap[code];
@@ -89,7 +136,7 @@
             let reason = "لم يتم تسجيل الحضور";
 
             if (record) {
-                status = record.status;
+                status = record.status || "حاضر";
                 time = record.time || "-";
                 exitTime = record.exitTime || "-";
                 reason = record.reason || "";
@@ -100,13 +147,15 @@
             else if (status === "مجاز") lvCount++;
             else aCount++;
 
+            let color = status==='حاضر'?'green':status==='متأخر'?'orange':status==='مجاز'?'blue':'red';
+
             rows += `<tr>
                 <td>${emp.id}</td>
                 <td style="font-weight:bold;">${emp.name}</td>
-                <td>${emp.type}</td>
+                <td>${emp.type || '-'}</td>
                 <td>${time}</td>
                 <td>${exitTime}</td>
-                <td style="font-weight:bold; color: ${status==='حاضر'?'green':status==='متأخر'?'orange':status==='مجاز'?'blue':'red'};">${status}</td>
+                <td style="font-weight:bold; color: ${color};">${status}</td>
                 <td>${reason}</td>
             </tr>`;
         }
@@ -116,8 +165,54 @@
         document.getElementById('countLate').innerText = lCount;
         document.getElementById('countLeave').innerText = lvCount;
         document.getElementById('countAbsent').innerText = aCount;
+    }
+
+    // تصفية الجدول (كشف المتغيبين أو عرض الكل)
+    window.filterTable = (targetStatus) => {
+        const rows = document.querySelectorAll("#reportTable tr");
+        rows.forEach(row => {
+            const statusCell = row.querySelector("td:nth-child(6)");
+            if (statusCell) {
+                if (targetStatus === 'الكل' || statusCell.innerText.includes(targetStatus)) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            }
+        });
     };
 
+    // تصفية من لم يسجلوا الانصراف
+    window.filterNoExit = () => {
+        const rows = document.querySelectorAll("#reportTable tr");
+        rows.forEach(row => {
+            const exitCell = row.querySelector("td:nth-child(5)");
+            const statusCell = row.querySelector("td:nth-child(6)");
+            if (exitCell && statusCell) {
+                if (exitCell.innerText === "-" && !statusCell.innerText.includes("غائب")) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            }
+        });
+    };
+
+    // تصدير Excel حقيقي يدعم العربية
+    window.exportExcel = () => {
+        let table = document.querySelector("table");
+        let html = table.outerHTML;
+        let blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = `attendance_report_${document.getElementById('reportDate').value}.xls`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+
+    // التشغيل التلقائي عند فتح الصفحة
     generateReport();
 </script>
 </body>
