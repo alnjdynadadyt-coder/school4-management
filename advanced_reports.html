@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <title>تقارير الموظف المتقدمة - اعدادية النجدين</title>
+    <!-- مكتبة الطباعة لملف PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #f4f7f6; text-align: center; }
         .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         .filter-box { background: #fffdf5; padding: 20px; border-radius: 8px; border: 1px solid #ffeeba; margin-bottom: 20px; display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
         input, select { padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 5px; width: 220px; }
-        .btn { padding: 10px 20px; font-size: 14px; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn { padding: 10px 15px; font-size: 14px; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin: 2px; }
         .btn-search { background: #28a745; }
         .btn-excel { background: #17a2b8; }
+        .btn-pdf { background: #dc3545; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #ddd; padding: 10px; font-size: 14px; text-align: center; }
         th { background: #007bff; color: white; }
@@ -19,8 +22,8 @@
 </head>
 <body>
 
-<div class="container">
-    <h2 style="color: #333;">تقارير متقدمة</h2>
+<div class="container" id="reportContent">
+    <h2 style="color: #333;">تقارير الموظف المتقدمة</h2>
     
     <div class="filter-box">
         <div>
@@ -37,7 +40,8 @@
         </div>
         <div style="margin-top: 18px;">
             <button class="btn btn-search" onclick="fetchAdvancedReport()">عرض التقرير</button>
-            <button class="btn btn-excel" onclick="exportToExcel()">تصدير التقرير لـ Excel</button>
+            <button class="btn btn-excel" onclick="exportToExcel()">تصدير Excel</button>
+            <button class="btn btn-pdf" onclick="exportToPDF()">تصدير PDF</button>
         </div>
     </div>
 
@@ -58,7 +62,7 @@
     </table>
 
     <br>
-    <a href="index.html" style="color: #007bff; text-decoration: none; font-weight: bold;">← العودة لوحة التحكم الرئيسية</a>
+    <a href="index.html" style="color: #007bff; text-decoration: none; font-weight: bold;" class="no-print">← العودة لوحة التحكم الرئيسية</a>
 </div>
 
 <script type="module">
@@ -97,7 +101,6 @@
 
             snapshot.forEach(docSnap => {
                 const data = docSnap.data();
-                // فلترة التاريخ إذا تم تحديدهما
                 if (start && data.date < start) return;
                 if (end && data.date > end) return;
 
@@ -124,15 +127,40 @@
         }
     };
 
+    // تصحيح دقة تصدير الـ Excel ليعمل كجدول حقيقي
     window.exportToExcel = () => {
+        let excelContent = "\uFEFF";
         let table = document.querySelector("table");
-        let html = table.outerHTML.replace(/ /g, '%20');
-        let blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' });
+        
+        let rows = table.querySelectorAll("tr");
+        for (let i = 0; i < rows.length; i++) {
+            let row = rows[i], rowData = [];
+            let cols = row.querySelectorAll("td, th");
+            for (let j = 0; j < cols.length; j++) {
+                rowData.push('"' + cols[j].innerText + '"');
+            }
+            excelContent += rowData.join("\t") + "\n";
+        }
+
+        let blob = new Blob([excelContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
         let url = URL.createObjectURL(blob);
         let a = document.createElement('a');
         a.href = url;
         a.download = 'advanced_attendance_report.xls';
         a.click();
+    };
+
+    // إضافة وظيفة تصدير وطباعة الـ PDF
+    window.exportToPDF = () => {
+        const element = document.getElementById('reportContent');
+        const opt = {
+            margin:       10,
+            filename:     'employee_report.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().from(element).set(opt).save();
     };
 </script>
 </body>
