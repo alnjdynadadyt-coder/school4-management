@@ -15,6 +15,9 @@
         .btn-excel { background: #28a745; }
         .btn-pdf { background: #17a2b8; }
         
+        .report-header { text-align: center; margin-bottom: 15px; display: none; }
+        .report-header h3 { margin: 5px 0; color: #333; }
+
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background-color: #ffc107; color: #333; }
@@ -23,6 +26,7 @@
 
         @media print {
             .input-group, .back-link, button { display: none !important; }
+            .report-header { display: block !important; }
             body { background: white; padding: 0; }
             .container { box-shadow: none; padding: 0; }
         }
@@ -30,8 +34,16 @@
 </head>
 <body>
 
-<div class="container">
+<div class="container" id="printableArea">
     <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
+    
+    <div class="report-header">
+        <h2>اعدادية النجدين</h2>
+        <h3 id="printReportTitle">تقرير الحضور والغياب اليومي</h3>
+        <p>التاريخ: <span id="printDate"></span></p>
+        <hr style="border: 0.5px solid #ccc;">
+    </div>
+
     <h2 style="color:#d39e00; text-align:center;">📊 تقارير الحضور والغياب اليومية</h2>
     
     <div class="input-group">
@@ -90,6 +102,9 @@
 
     window.generateReport = async () => {
         const date = document.getElementById('reportDate').value;
+        document.getElementById('printDate').innerText = date;
+        document.getElementById('printReportTitle').innerText = "تقرير الحضور والغياب (عرض المسجلين)";
+        
         const tbody = document.getElementById('reportTable');
         tbody.innerHTML = `<tr><td colspan="7">جاري جلب البيانات...</td></tr>`;
         
@@ -114,7 +129,6 @@
         }
     };
 
-    // عرض المسجلين فقط في الوضع الافتراضي
     function renderActiveAttendance(employees, attendanceMap) {
         let rows = "";
         let pCount = 0, lCount = 0, lvCount = 0;
@@ -150,14 +164,16 @@
         updateStats(pCount, lCount, lvCount, 0);
     }
 
-    // كشف المتغيبين (من لم يسجلوا حضورهم اليوم)
     window.showAbsentList = () => {
+        const date = document.getElementById('reportDate').value;
+        document.getElementById('printDate').innerText = date;
+        document.getElementById('printReportTitle').innerText = "كشف المتغيبين (لم يسجلوا الحضور)";
+
         let rows = "";
         let absentCount = 0;
 
         for (let code in cachedEmployees) {
             let emp = cachedEmployees[code];
-            // إذا لم يكن الموظف موجوداً في سجلات حضور اليوم
             if (!cachedAttendance[code]) {
                 absentCount++;
                 rows += `<tr>
@@ -178,7 +194,6 @@
 
         document.getElementById('reportTable').innerHTML = rows;
         
-        // تحديث أرقام الإحصائيات مع إبراز الغائبين
         let pCount = Object.values(cachedAttendance).filter(r => r.status === "حاضر").length;
         let lCount = Object.values(cachedAttendance).filter(r => r.status === "متأخر").length;
         let lvCount = Object.values(cachedAttendance).filter(r => r.status === "مجاز").length;
@@ -192,15 +207,20 @@
         document.getElementById('countAbsent').innerText = a;
     }
 
-    // تصفية من لم يسجلوا الانصراف
+    // إصلاح زر لم يسجلوا الانصراف
     window.filterNoExit = () => {
         const rows = document.querySelectorAll("#reportTable tr");
+        let found = false;
         rows.forEach(row => {
+            const timeInCell = row.querySelector("td:nth-child(4)");
             const exitCell = row.querySelector("td:nth-child(5)");
             const statusCell = row.querySelector("td:nth-child(6)");
-            if (exitCell && statusCell) {
-                if (exitCell.innerText === "-" && !statusCell.innerText.includes("غائب")) {
+            
+            if (timeInCell && exitCell && statusCell) {
+                // إذا كان الموظف مسجلاً حضوره ولديه وقت حضور، ولكن وقت انصرافه '-' ولم يكن غائباً
+                if (timeInCell.innerText !== "-" && exitCell.innerText === "-" && !statusCell.innerText.includes("غائب")) {
                     row.style.display = "";
+                    found = true;
                 } else {
                     row.style.display = "none";
                 }
@@ -208,15 +228,24 @@
         });
     };
 
-    // تصدير Excel
+    // تصدير Excel شامل مع معلومات التاريخ واسم المدرسة
     window.exportExcel = () => {
-        let table = document.querySelector("table");
-        let html = table.outerHTML;
+        const date = document.getElementById('reportDate').value;
+        let html = `
+            <html dir="rtl">
+            <head><meta charset="UTF-8"></head>
+            <body>
+                <h3>اعدادية النجدين - تقرير الحضور والغياب</h3>
+                <p>تاريخ التقرير: ${date}</p>
+                ${document.querySelector("table").outerHTML}
+            </body>
+            </html>
+        `;
         let blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
         let url = URL.createObjectURL(blob);
         let a = document.createElement('a');
         a.href = url;
-        a.download = `attendance_report_${document.getElementById('reportDate').value}.xls`;
+        a.download = `attendance_report_${date}.xls`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
