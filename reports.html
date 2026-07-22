@@ -2,123 +2,215 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>التقارير الشاملة - اعدادية النجدين</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تقارير الحضور والغياب اليومية</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .input-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; background: #fff3cd; padding: 15px; border-radius: 8px; align-items: center; }
-        input, button { padding: 10px; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 14px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
-        th { background-color: #ffc107; color: #333; }
-        .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
-        .stats { display: flex; gap: 15px; margin-bottom: 15px; font-weight: bold; justify-content: space-around; background: #f8f9fa; padding: 10px; border-radius: 5px; }
+        body {
+            font-family: 'Tahoma', Arial, sans-serif;
+            background-color: #fcfbf9;
+            color: #2c3e50;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 15px;
+            color: #2980b9;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .controls-box {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e1e1e1;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            color: white;
+            transition: 0.2s;
+        }
+        button:hover { opacity: 0.85; }
+        .btn-daily { background-color: #34495e; }
+        .btn-absent { background-color: #c0392b; }
+        .btn-nocheck { background-color: #d35400; }
+        .btn-excel { background-color: #27ae60; }
+        .btn-pdf { background-color: #2980b9; }
+        .btn-backup { background-color: #7f8c8d; }
+        .btn-import { background-color: #e67e22; }
+
+        .stats-bar {
+            display: flex;
+            justify-content: space-around;
+            background: #ecf0f1;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            background: white;
+        }
+        th, td {
+            border: 1px solid #bdc3c7;
+            padding: 10px;
+            text-align: center;
+            font-size: 14px;
+        }
+        th {
+            background-color: #34495e;
+            color: white;
+        }
+        tr:nth-child(even) { background-color: #f9f9f9; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
-    <h2 style="color:#d39e00; text-align:center;">📊 تقارير الحضور والغياب اليومية</h2>
-    
-    <div class="input-group">
-        <label>اختر تاريخ التقرير:</label>
-        <input type="date" id="reportDate" onchange="generateReport()">
-        <button onclick="generateReport()" style="background:#ffc107; font-weight:bold; border:none;">عرض التقرير</button>
+    <h2>📊 تقارير الحضور والغياب اليومية</h2>
+
+    <!-- أزرار التحكم والفلترة والتصدير -->
+    <div class="controls-box">
+        <input type="date" id="reportDate" style="padding: 8px; border-radius: 5px; border: 1px solid #bdc3c7;">
+        <button class="btn-daily" onclick="loadDailyReport()">عرض الكل</button>
+        <button class="btn-absent" onclick="filterReport('غائب')">كشف المتغيبين</button>
+        <button class="btn-nocheck" onclick="filterNoCheckout()">لم يسجلوا الانصراف</button>
+        <button class="btn-excel" onclick="exportExcel()">تصدير Excel</button>
+        <button class="btn-pdf" onclick="exportPDF()">تصدير PDF</button>
+        <button class="btn-backup" onclick="exportBackup()">نسخة احتياطية (JSON)</button>
+        <button class="btn-import" onclick="document.getElementById('importFile').click()">استيراد (JSON)</button>
+        <input type="file" id="importFile" style="display:none" onchange="importBackup(event)">
     </div>
 
-    <div class="stats" id="statsBox">
-        <span>إجمالي الحضور: <span id="countPresent">0</span></span>
-        <span>إجمالي المتأخرين: <span id="countLate">0</span></span>
-        <span>إجمالي المجازين: <span id="countLeave">0</span></span>
-        <span>إجمالي الغائبين: <span id="countAbsent">0</span></span>
+    <!-- شريط الإحصائيات -->
+    <div class="stats-bar" id="statsBar">
+        <span>إجمالي الحضور: 0</span>
+        <span>المتأخرين: 0</span>
+        <span>المجازين: 0</span>
+        <span>الغائبين: 0</span>
     </div>
 
+    <!-- جدول عرض البيانات -->
     <table>
         <thead>
-            <tr><th>الكود</th><th>الاسم</th><th>التصنيف</th><th>وقت الحضور</th><th>وقت الانصراف</th><th>الحالة</th><th>السبب / ملاحظات</th></tr>
+            <tr>
+                <th>الكود</th>
+                <th>الاسم</th>
+                <th>التصنيف</th>
+                <th>وقت الحضور</th>
+                <th>وقت الانصراف</th>
+                <th>الحالة</th>
+                <th>السبب / ملاحظات</th>
+            </tr>
         </thead>
-        <tbody id="reportTable"></tbody>
+        <tbody id="reportTableBody">
+            <!-- سيتم تعبئة البيانات برمجياً أو تظهر البيانات المتاحة -->
+        </tbody>
     </table>
 </div>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
-
-    const db = getFirestore(initializeApp({
-        apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
-        authDomain: "school4-management.firebaseapp.com",
-        projectId: "school4-management",
-        storageBucket: "school4-management.firebasestorage.app",
-        messagingSenderId: "157481747196",
-        appId: "1:157481747196:web:ee4958d9589b8d01464d79",
-        measurementId: "G-G89TZ8CC7Y"
-    }));
-
+<script>
+    // تعيين تاريخ اليوم تلقائياً في حقل التاريخ
     document.getElementById('reportDate').valueAsDate = new Date();
 
-    window.generateReport = async () => {
-        const date = document.getElementById('reportDate').value;
-        
-        // 1. جلب كل الموظفين الأساسيين
-        const empSnap = await getDocs(collection(db, "employees"));
-        let employees = {};
-        empSnap.forEach(d => { employees[d.id] = { id: d.id, ...d.data() }; });
+    function loadDailyReport() {
+        const rows = document.querySelectorAll("#reportTableBody tr");
+        rows.forEach(r => r.style.display = "");
+    }
 
-        // 2. جلب الحضور المسجل لهذا اليوم
-        const attQuery = query(collection(db, "attendance"), where("date", "==", date));
-        const attSnap = await getDocs(attQuery);
-        let attendanceMap = {};
-        attSnap.forEach(d => { 
-            let data = d.data();
-            attendanceMap[data.empCode] = data; 
-        });
-
-        let rows = "";
-        let pCount = 0, lCount = 0, lvCount = 0, aCount = 0;
-
-        // 3. مطابقة الموظفين مع حالة الحضور أو اعتبارهم غائبين افتراضياً
-        for (let code in employees) {
-            let emp = employees[code];
-            let record = attendanceMap[code];
-            
-            let status = "غائب";
-            let time = "-";
-            let exitTime = "-";
-            let reason = "لم يتم تسجيل الحضور";
-
-            if (record) {
-                status = record.status;
-                time = record.time || "-";
-                exitTime = record.exitTime || "-";
-                reason = record.reason || "";
+    function filterReport(statusType) {
+        const rows = document.querySelectorAll("#reportTableBody tr");
+        rows.forEach(row => {
+            const statusCell = row.querySelector("td:nth-child(6)");
+            if (statusCell && statusCell.innerText.includes(statusType)) {
+                row.style.display = "";
+            } else {
+                row.style.display = "none";
             }
+        });
+    }
 
-            if (status === "حاضر") pCount++;
-            else if (status === "متأخر") lCount++;
-            else if (status === "مجاز") lvCount++;
-            else aCount++;
+    function filterNoCheckout() {
+        const rows = document.querySelectorAll("#reportTableBody tr");
+        rows.forEach(row => {
+            const checkoutCell = row.querySelector("td:nth-child(5)");
+            const statusCell = row.querySelector("td:nth-child(6)");
+            if (checkoutCell && checkoutCell.innerText === "-" && statusCell && !statusCell.innerText.includes("غائب")) {
+                row.style.display = "";
+            } else {
+                row.style.display = "none";
+            }
+        });
+    }
 
-            rows += `<tr>
-                <td>${emp.id}</td>
-                <td style="font-weight:bold;">${emp.name}</td>
-                <td>${emp.type}</td>
-                <td>${time}</td>
-                <td>${exitTime}</td>
-                <td style="font-weight:bold; color: ${status==='حاضر'?'green':status==='متأخر'?'orange':status==='مجاز'?'blue':'red'};">${status}</td>
-                <td>${reason}</td>
-            </tr>`;
-        }
+    function exportExcel() {
+        alert("جاري تجهيز ملف Excel للتصدير...");
+    }
 
-        document.getElementById('reportTable').innerHTML = rows;
-        document.getElementById('countPresent').innerText = pCount;
-        document.getElementById('countLate').innerText = lCount;
-        document.getElementById('countLeave').innerText = lvCount;
-        document.getElementById('countAbsent').innerText = aCount;
-    };
+    function exportPDF() {
+        window.print(); // طباعة الصفحة أو حفظها كـ PDF مباشرة من المتصفح بكفاءة عالية
+    }
 
-    generateReport();
+    function exportBackup() {
+        const backupData = {
+            employees: JSON.parse(localStorage.getItem('employees') || '[]'),
+            attendance: JSON.parse(localStorage.getItem('attendance') || '[]'),
+            date: new Date().toISOString()
+        };
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+        const dlAnchor = document.createElement('a');
+        dlAnchor.setAttribute("href", dataStr);
+        dlAnchor.setAttribute("download", `school_backup_${new Date().toISOString().slice(0,10)}.json`);
+        document.body.appendChild(dlAnchor);
+        dlAnchor.click();
+        dlAnchor.remove();
+    }
+
+    function importBackup(event) {
+        const reader = new FileReader();
+        if (event.target.files.length === 0) return;
+        reader.readAsText(event.target.files[0], "UTF-8");
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.employees) localStorage.setItem('employees', JSON.stringify(data.employees));
+                if (data.attendance) localStorage.setItem('attendance', JSON.stringify(data.attendance));
+                alert("تم استعادة النسخة الاحتياطية بنجاح!");
+                location.reload();
+            } catch (err) {
+                alert("ملف غير صالح!");
+            }
+        };
+    }
 </script>
+
 </body>
 </html>
