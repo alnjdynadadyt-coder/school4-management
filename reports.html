@@ -12,7 +12,6 @@
         .btn-show { background: #ffc107; color: #333; }
         .btn-absent { background: #dc3545; }
         .btn-nocheck { background: #fd7e14; }
-        .btn-all { background: #6c757d; }
         .btn-excel { background: #28a745; }
         .btn-pdf { background: #17a2b8; }
         
@@ -39,7 +38,7 @@
         <label>اختر تاريخ التقرير:</label>
         <input type="date" id="reportDate" onchange="generateReport()" style="background: white; font-weight: normal;">
         <button class="btn-show" onclick="generateReport()">عرض الكل</button>
-        <button class="btn-absent" onclick="filterTable('غائب')">كشف المتغيبين</button>
+        <button class="btn-absent" onclick="showAbsentList()">كشف المتغيبين</button>
         <button class="btn-nocheck" onclick="filterNoExit()">لم يسجلوا الانصراف</button>
         <button class="btn-excel" onclick="exportExcel()">تصدير Excel</button>
         <button class="btn-pdf" onclick="window.print()">تصدير PDF</button>
@@ -95,12 +94,10 @@
         tbody.innerHTML = `<tr><td colspan="7">جاري جلب البيانات...</td></tr>`;
         
         try {
-            // 1. جلب كل الموظفين الأساسيين
             const empSnap = await getDocs(collection(db, "employees"));
             cachedEmployees = {};
             empSnap.forEach(d => { cachedEmployees[d.id] = { id: d.id, ...d.data() }; });
 
-            // 2. جلب الحضور المسجل لهذا اليوم
             const attQuery = query(collection(db, "attendance"), where("date", "==", date));
             const attSnap = await getDocs(attQuery);
             cachedAttendance = {};
@@ -109,7 +106,7 @@
                 cachedAttendance[data.empCode] = data; 
             });
 
-            renderTableRows(cachedEmployees, cachedAttendance);
+            renderActiveAttendance(cachedEmployees, cachedAttendance);
 
         } catch (error) {
             console.error(error);
@@ -117,70 +114,83 @@
         }
     };
 
-    function renderTableRows(employees, attendanceMap) {
+    // عرض المسجلين فقط في الوضع الافتراضي
+    function renderActiveAttendance(employees, attendanceMap) {
         let rows = "";
-        let pCount = 0, lCount = 0, lvCount = 0, aCount = 0;
+        let pCount = 0, lCount = 0, lvCount = 0;
 
-        if (Object.keys(employees).length === 0) {
-            document.getElementById('reportTable').innerHTML = `<tr><td colspan="7">لا توجد بيانات موظفين مسجلة في النظام</td></tr>`;
+        let recordedList = Object.values(attendanceMap);
+
+        if (recordedList.length === 0) {
+            document.getElementById('reportTable').innerHTML = `<tr><td colspan="7" style="color: #6c757d;">لا توجد سجلات حضور مسجلة لهذا التاريخ حتى الآن</td></tr>`;
+            updateStats(0, 0, 0, 0);
             return;
         }
 
-        for (let code in employees) {
-            let emp = employees[code];
-            let record = attendanceMap[code];
-            
-            let status = "غائب";
-            let time = "-";
-            let exitTime = "-";
-            let reason = "لم يتم تسجيل الحضور";
-
-            if (record) {
-                status = record.status || "حاضر";
-                time = record.time || "-";
-                exitTime = record.exitTime || "-";
-                reason = record.reason || "";
-            }
-
+        recordedList.forEach(record => {
+            let status = record.status || "حاضر";
             if (status === "حاضر") pCount++;
             else if (status === "متأخر") lCount++;
             else if (status === "مجاز") lvCount++;
-            else aCount++;
 
-            let color = status==='حاضر'?'green':status==='متأخر'?'orange':status==='مجاز'?'blue':'red';
+            let color = status==='حاضر'?'green':status==='متأخر'?'orange':'blue';
 
             rows += `<tr>
-                <td>${emp.id}</td>
-                <td style="font-weight:bold;">${emp.name}</td>
-                <td>${emp.type || '-'}</td>
-                <td>${time}</td>
-                <td>${exitTime}</td>
+                <td>${record.empCode || '-'}</td>
+                <td style="font-weight:bold;">${record.name || 'مستخدم'}</td>
+                <td>${record.type || '-'}</td>
+                <td>${record.time || '-'}</td>
+                <td>${record.exitTime || '-'}</td>
                 <td style="font-weight:bold; color: ${color};">${status}</td>
-                <td>${reason}</td>
+                <td>${record.reason || '-'}</td>
             </tr>`;
+        });
+
+        document.getElementById('reportTable').innerHTML = rows;
+        updateStats(pCount, lCount, lvCount, 0);
+    }
+
+    // كشف المتغيبين (من لم يسجلوا حضورهم اليوم)
+    window.showAbsentList = () => {
+        let rows = "";
+        let absentCount = 0;
+
+        for (let code in cachedEmployees) {
+            let emp = cachedEmployees[code];
+            // إذا لم يكن الموظف موجوداً في سجلات حضور اليوم
+            if (!cachedAttendance[code]) {
+                absentCount++;
+                rows += `<tr>
+                    <td>${emp.id}</td>
+                    <td style="font-weight:bold;">${emp.name}</td>
+                    <td>${emp.type || '-'}</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td style="font-weight:bold; color: red;">غائب (لم يسجل)</td>
+                    <td>لم يقم بتسجيل الحضور</td>
+                </tr>`;
+            }
+        }
+
+        if (rows === "") {
+            rows = `<tr><td colspan="7" style="color: green; font-weight: bold;">رائع! الجميع قاموا بتسجيل الحضور لهذا اليوم.</td></tr>`;
         }
 
         document.getElementById('reportTable').innerHTML = rows;
-        document.getElementById('countPresent').innerText = pCount;
-        document.getElementById('countLate').innerText = lCount;
-        document.getElementById('countLeave').innerText = lvCount;
-        document.getElementById('countAbsent').innerText = aCount;
-    }
-
-    // تصفية الجدول (كشف المتغيبين أو عرض الكل)
-    window.filterTable = (targetStatus) => {
-        const rows = document.querySelectorAll("#reportTable tr");
-        rows.forEach(row => {
-            const statusCell = row.querySelector("td:nth-child(6)");
-            if (statusCell) {
-                if (targetStatus === 'الكل' || statusCell.innerText.includes(targetStatus)) {
-                    row.style.display = "";
-                } else {
-                    row.style.display = "none";
-                }
-            }
-        });
+        
+        // تحديث أرقام الإحصائيات مع إبراز الغائبين
+        let pCount = Object.values(cachedAttendance).filter(r => r.status === "حاضر").length;
+        let lCount = Object.values(cachedAttendance).filter(r => r.status === "متأخر").length;
+        let lvCount = Object.values(cachedAttendance).filter(r => r.status === "مجاز").length;
+        updateStats(pCount, lCount, lvCount, absentCount);
     };
+
+    function updateStats(p, l, lv, a) {
+        document.getElementById('countPresent').innerText = p;
+        document.getElementById('countLate').innerText = l;
+        document.getElementById('countLeave').innerText = lv;
+        document.getElementById('countAbsent').innerText = a;
+    }
 
     // تصفية من لم يسجلوا الانصراف
     window.filterNoExit = () => {
@@ -198,7 +208,7 @@
         });
     };
 
-    // تصدير Excel حقيقي يدعم العربية
+    // تصدير Excel
     window.exportExcel = () => {
         let table = document.querySelector("table");
         let html = table.outerHTML;
@@ -212,7 +222,6 @@
         document.body.removeChild(a);
     };
 
-    // التشغيل التلقائي عند فتح الصفحة
     generateReport();
 </script>
 </body>
