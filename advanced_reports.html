@@ -34,11 +34,13 @@
             <label style="display:block; font-size:12px; margin-bottom:3px; text-align:right;">إلى تاريخ:</label>
             <input type="date" id="endDate">
         </div>
-        <div>
+        <!-- تم وضع فئة no-print لإخفائها عند طباعة PDF -->
+        <div class="no-print">
             <label style="display:block; font-size:12px; margin-bottom:3px; text-align:right;">كود الموظف:</label>
             <input type="text" id="empCodeFilter" placeholder="أدخل كود الموظف">
         </div>
-        <div style="margin-top: 18px;">
+        <!-- تم وضع فئة no-print لإخفاء الأزرار عند طباعة PDF -->
+        <div style="margin-top: 18px;" class="no-print">
             <button class="btn btn-search" onclick="fetchAdvancedReport()">عرض التقرير</button>
             <button class="btn btn-excel" onclick="exportToExcel()">تصدير Excel</button>
             <button class="btn btn-pdf" onclick="exportToPDF()">تصدير PDF</button>
@@ -62,6 +64,7 @@
     </table>
 
     <br>
+    <!-- تم وضع فئة no-print لإخفائها عند طباعة PDF -->
     <a href="index.html" style="color: #007bff; text-decoration: none; font-weight: bold;" class="no-print">← العودة لوحة التحكم الرئيسية</a>
 </div>
 
@@ -127,7 +130,6 @@
         }
     };
 
-    // تصحيح دقة تصدير الـ Excel ليعمل كجدول حقيقي
     window.exportToExcel = () => {
         let excelContent = "\uFEFF";
         let table = document.querySelector("table");
@@ -150,18 +152,26 @@
         a.click();
     };
 
-    // إضافة وظيفة تصدير وطباعة الـ PDF
+    // التعديل هنا لإخفاء العناصر التي تحمل فئة no-print تلقائياً عند حفظ ملف PDF
     window.exportToPDF = () => {
         const element = document.getElementById('reportContent');
         const opt = {
             margin:       10,
             filename:     'employee_report.pdf',
             image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2 },
+            html2canvas:  { scale: 2, useCORS: true },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
-        html2pdf().from(element).set(opt).save();
+
+        // إخفاء العناصر مؤقتاً أثناء التصدير
+        document.querySelectorAll('.no-print').forEach(el => el.style.display = 'none');
+
+        html2pdf().from(element).set(opt).save().then(() => {
+            // إعادة إظهار العناصر بعد اكتمال التحميل
+            document.querySelectorAll('.no-print').forEach(el => el.style.display = '');
+        });
     };
 </script>
 </body>
 </html>
+ 
