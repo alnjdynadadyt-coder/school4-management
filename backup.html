@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>النسخ الاحتياطي والاستيراد - اعدادية النجدين</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f7f6; text-align: center; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .box { background: #e8f4fd; padding: 20px; border-radius: 8px; border: 1px solid #b8daff; margin-bottom: 20px; }
+        .btn { padding: 12px 25px; font-size: 16px; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
+        .btn-backup { background: #28a745; }
+        .btn-restore { background: #dc3545; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="color: #333;">إدارة النسخ الاحتياطي</h2>
+    
+    <div class="box">
+        <h3>النسخ الاحتياطي للبيانات</h3>
+        <p style="font-size: 13px; color: #555;">احفظ نسخة من جميع بيانات الموظفين والحضور بصيغة ملف JSON على جهازك.</p>
+        <button class="btn btn-backup" onclick="exportBackup()">تحميل نسخة احتياطية</button>
+    </div>
+
+    <div class="box" style="background: #f8d7da; border-color: #f5c6cb;">
+        <h3 style="color: #721c24;">استيراد النسخة الاحتياوحة</h3>
+        <p style="font-size: 13px; color: #721c24;">استعادة البيانات من ملف نسخ احتياطي سابق.</p>
+        <input type="file" id="importFile" accept=".json" style="margin-bottom: 10px; width: 100%;">
+        <button class="btn btn-restore" onclick="importBackup()">استيراد البيانات</button>
+    </div>
+
+    <br>
+    <a href="index.html" style="color: #007bff; text-decoration: none; font-weight: bold;">← العودة لوحة التحكم الرئيسية</a>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, setDoc, doc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+    const db = getFirestore(initializeApp({
+        apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
+        authDomain: "school4-management.firebaseapp.com",
+        projectId: "school4-management",
+        storageBucket: "school4-management.firebasestorage.app",
+        messagingSenderId: "157481747196",
+        appId: "1:157481747196:web:ee4958d9589b8d01464d79",
+        measurementId: "G-G89TZ8CC7Y"
+    }));
+
+    window.exportBackup = async () => {
+        try {
+            let backupData = { employees: {}, attendance: {} };
+            
+            // سحب الموظفين
+            const empSnap = await getDocs(collection(db, "employees"));
+            empSnap.forEach(d => { backupData.employees[d.id] = d.data(); });
+
+            // سحب الحضور
+            const attSnap = await getDocs(collection(db, "attendance"));
+            attSnap.forEach(d => { backupData.attendance[d.id] = d.data(); });
+
+            let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData));
+            let dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", "school_backup_" + new Date().toISOString().split('T')[0] + ".json");
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+            alert("تم تحميل النسخة الاحتياطية بنجاح!");
+        } catch (e) {
+            console.error(e);
+            alert("حدث خطأ أثناء تصدير النسخة الاحتياطية.");
+        }
+    };
+
+    window.importBackup = async () => {
+        const fileInput = document.getElementById('importFile');
+        if (fileInput.files.length === 0) {
+            alert("يرجى اختيار ملف النسخة الاحتياطية أولاً!");
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async function(event) {
+            try {
+                const data = JSON.parse(event.target.result);
+                
+                // استيراد الموظفين
+                if (data.employees) {
+                    for (let id in data.employees) {
+                        await setDoc(doc(db, "employees", id), data.employees[id]);
+                    }
+                }
+
+                // استيراد الحضور
+                if (data.attendance) {
+                    for (let id in data.attendance) {
+                        await setDoc(doc(db, "attendance", id), data.attendance[id]);
+                    }
+                }
+
+                alert("تم استيراد البيانات بنجاح إلى النظام!");
+            } catch (e) {
+                console.error(e);
+                alert("ملف غير صالح أو حدث خطأ أثناء الاستيراد.");
+            }
+        };
+        reader.readAsText(fileInput.files[0]);
+    };
+</script>
+</body>
+</html>
