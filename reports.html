@@ -5,7 +5,7 @@
     <title>التقارير الشاملة - اعدادية النجدين</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .input-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; background: #fff3cd; padding: 15px; border-radius: 8px; align-items: center; }
         input, button { padding: 10px; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; }
         button { color: white; border: none; }
@@ -18,9 +18,19 @@
         .report-header { text-align: center; margin-bottom: 15px; display: none; }
         .report-header h3 { margin: 5px 0; color: #333; }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; word-wrap: break-word; }
         th { background-color: #ffc107; color: #333; }
+        
+        /* تخصيص عرض الأعمدة: إعطاء مساحة واسعة للاسم وتضييق أوقات الحضور والانصراف والتصنيف */
+        th:nth-child(1), td:nth-child(1) { width: 8%; }  /* الكود */
+        th:nth-child(2), td:nth-child(2) { width: 25%; } /* الاسم (مساحة أوسع) */
+        th:nth-child(3), td:nth-child(3) { width: 12%; } /* التصنيف */
+        th:nth-child(4), td:nth-child(4) { width: 12%; } /* وقت الحضور */
+        th:nth-child(5), td:nth-child(5) { width: 12%; } /* وقت الانصراف */
+        th:nth-child(6), td:nth-child(6) { width: 13%; } /* الحالة */
+        th:nth-child(7), td:nth-child(7) { width: 18%; } /* السبب */
+
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
         .stats { display: flex; gap: 15px; margin-bottom: 15px; font-weight: bold; justify-content: space-around; background: #f8f9fa; padding: 10px; border-radius: 5px; }
 
@@ -40,7 +50,7 @@
     <div class="report-header">
         <h2>اعدادية النجدين</h2>
         <h3 id="printReportTitle">تقرير الحضور والغياب اليومي</h3>
-        <p>التاريخ: <span id="printDate"></span></p>
+        <p>اليوم والتاريخ: <span id="printDate"></span></p>
         <hr style="border: 0.5px solid #ccc;">
     </div>
 
@@ -100,9 +110,16 @@
     let cachedEmployees = {};
     let cachedAttendance = {};
 
+    function getFormattedDateString(dateVal) {
+        if (!dateVal) return "";
+        let d = new Date(dateVal);
+        let options = { weekday: 'long', year: 'numeric', month: 'numeric', day: 'numeric' };
+        return d.toLocaleDateString('ar-IQ', options);
+    }
+
     window.generateReport = async () => {
-        const date = document.getElementById('reportDate').value;
-        document.getElementById('printDate').innerText = date;
+        const dateVal = document.getElementById('reportDate').value;
+        document.getElementById('printDate').innerText = getFormattedDateString(dateVal);
         document.getElementById('printReportTitle').innerText = "تقرير الحضور والغياب (عرض المسجلين)";
         
         const tbody = document.getElementById('reportTable');
@@ -113,7 +130,7 @@
             cachedEmployees = {};
             empSnap.forEach(d => { cachedEmployees[d.id] = { id: d.id, ...d.data() }; });
 
-            const attQuery = query(collection(db, "attendance"), where("date", "==", date));
+            const attQuery = query(collection(db, "attendance"), where("date", "==", dateVal));
             const attSnap = await getDocs(attQuery);
             cachedAttendance = {};
             attSnap.forEach(d => { 
@@ -148,11 +165,16 @@
             else if (status === "مجاز") lvCount++;
 
             let color = status==='حاضر'?'green':status==='متأخر'?'orange':'blue';
+            
+            // جلب التصنيف من الموظفين الأساسيين إن لم يكن محفوظاً في السجل
+            let empInfo = employees[record.empCode] || {};
+            let empType = record.type || empInfo.type || '-';
+            let empName = record.name || empInfo.name || 'مستخدم';
 
             rows += `<tr>
                 <td>${record.empCode || '-'}</td>
-                <td style="font-weight:bold;">${record.name || 'مستخدم'}</td>
-                <td>${record.type || '-'}</td>
+                <td style="font-weight:bold; text-align:right; padding-right:15px;">${empName}</td>
+                <td>${empType}</td>
                 <td>${record.time || '-'}</td>
                 <td>${record.exitTime || '-'}</td>
                 <td style="font-weight:bold; color: ${color};">${status}</td>
@@ -165,8 +187,8 @@
     }
 
     window.showAbsentList = () => {
-        const date = document.getElementById('reportDate').value;
-        document.getElementById('printDate').innerText = date;
+        const dateVal = document.getElementById('reportDate').value;
+        document.getElementById('printDate').innerText = getFormattedDateString(dateVal);
         document.getElementById('printReportTitle').innerText = "كشف المتغيبين (لم يسجلوا الحضور)";
 
         let rows = "";
@@ -178,7 +200,7 @@
                 absentCount++;
                 rows += `<tr>
                     <td>${emp.id}</td>
-                    <td style="font-weight:bold;">${emp.name}</td>
+                    <td style="font-weight:bold; text-align:right; padding-right:15px;">${emp.name}</td>
                     <td>${emp.type || '-'}</td>
                     <td>-</td>
                     <td>-</td>
@@ -207,36 +229,55 @@
         document.getElementById('countAbsent').innerText = a;
     }
 
-    // إصلاح زر لم يسجلوا الانصراف
+    // إصلاح زر لم يسجلوا الانصراف بشكل صحيح
     window.filterNoExit = () => {
-        const rows = document.querySelectorAll("#reportTable tr");
-        let found = false;
-        rows.forEach(row => {
-            const timeInCell = row.querySelector("td:nth-child(4)");
-            const exitCell = row.querySelector("td:nth-child(5)");
-            const statusCell = row.querySelector("td:nth-child(6)");
-            
-            if (timeInCell && exitCell && statusCell) {
-                // إذا كان الموظف مسجلاً حضوره ولديه وقت حضور، ولكن وقت انصرافه '-' ولم يكن غائباً
-                if (timeInCell.innerText !== "-" && exitCell.innerText === "-" && !statusCell.innerText.includes("غائب")) {
-                    row.style.display = "";
-                    found = true;
-                } else {
-                    row.style.display = "none";
-                }
+        const dateVal = document.getElementById('reportDate').value;
+        document.getElementById('printDate').innerText = getFormattedDateString(dateVal);
+        document.getElementById('printReportTitle').innerText = "موظفون لم يسجلوا انصرافهم";
+
+        let rows = "";
+        let count = 0;
+
+        for (let code in cachedAttendance) {
+            let record = cachedAttendance[code];
+            // إذا سجل حضور ولديه وقت حضور، ولكن وقت انصرافه مفقود أو '-'
+            let exitTime = record.exitTime || "-";
+            let status = record.status || "حاضر";
+
+            if (exitTime === "-" && status !== "غائب") {
+                count++;
+                let empInfo = cachedEmployees[code] || {};
+                let empType = record.type || empInfo.type || '-';
+                let empName = record.name || empInfo.name || 'مستخدم';
+
+                rows += `<tr>
+                    <td>${code}</td>
+                    <td style="font-weight:bold; text-align:right; padding-right:15px;">${empName}</td>
+                    <td>${empType}</td>
+                    <td>${record.time || '-'}</td>
+                    <td>-</td>
+                    <td style="font-weight:bold; color: orange;">${status} (بدون انصراف)</td>
+                    <td>${record.reason || '-'}</td>
+                </tr>`;
             }
-        });
+        }
+
+        if (rows === "") {
+            rows = `<tr><td colspan="7" style="color: green; font-weight: bold;">ممتاز! الجميع قاموا بتسجيل الانصراف.</td></tr>`;
+        }
+
+        document.getElementById('reportTable').innerHTML = rows;
     };
 
-    // تصدير Excel شامل مع معلومات التاريخ واسم المدرسة
     window.exportExcel = () => {
-        const date = document.getElementById('reportDate').value;
+        const dateVal = document.getElementById('reportDate').value;
+        let fullDateStr = getFormattedDateString(dateVal);
         let html = `
             <html dir="rtl">
             <head><meta charset="UTF-8"></head>
             <body>
                 <h3>اعدادية النجدين - تقرير الحضور والغياب</h3>
-                <p>تاريخ التقرير: ${date}</p>
+                <p>اليوم والتاريخ: ${fullDateStr}</p>
                 ${document.querySelector("table").outerHTML}
             </body>
             </html>
@@ -245,7 +286,7 @@
         let url = URL.createObjectURL(blob);
         let a = document.createElement('a');
         a.href = url;
-        a.download = `attendance_report_${date}.xls`;
+        a.download = `attendance_report_${dateVal}.xls`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
