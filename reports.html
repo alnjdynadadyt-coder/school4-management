@@ -95,17 +95,15 @@
     <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
     <h2>📊 تقارير الحضور والغياب اليومية</h2>
 
-    <!-- أزرار التحكم والفلترة بدون نسخ احتياطي أو استيراد -->
     <div class="controls-box">
-        <input type="date" id="reportDate" style="padding: 7px; border-radius: 5px; border: 1px solid #bdc3c7;" onchange="renderReport()">
-        <button class="btn-daily" onclick="renderReport()">عرض الكل</button>
+        <input type="date" id="reportDate" style="padding: 7px; border-radius: 5px; border: 1px solid #bdc3c7;" onchange="loadReportData()">
+        <button class="btn-daily" onclick="loadReportData()">عرض الكل</button>
         <button class="btn-absent" onclick="filterTable('غائب')">كشف المتغيبين</button>
         <button class="btn-nocheck" onclick="filterNoCheckout()">لم يسجلوا الانصراف</button>
-        <button class="btn-excel" onclick="exportExcel()">تصدير Excel</button>
+        <button class="btn-excel" onclick="exportToExcel()">تصدير Excel</button>
         <button class="btn-pdf" onclick="window.print()">تصدير PDF</button>
     </div>
 
-    <!-- شريط الإحصائيات -->
     <div class="stats-bar" id="statsBar">
         <span id="statPresent">إجمالي الحضور: 0</span>
         <span id="statLate">المتأخرين: 0</span>
@@ -113,7 +111,6 @@
         <span id="statAbsent">الغائبين: 0</span>
     </div>
 
-    <!-- جدول عرض البيانات -->
     <table>
         <thead>
             <tr>
@@ -127,7 +124,7 @@
             </tr>
         </thead>
         <tbody id="reportTableBody">
-            <!-- البيانات -->
+            <tr><td colspan="7" style="color: #7f8c8d; padding: 20px;">جاري تحميل البيانات...</td></tr>
         </tbody>
     </table>
 </div>
@@ -135,80 +132,73 @@
 <script>
     document.getElementById('reportDate').valueAsDate = new Date();
 
-    function renderReport() {
+    function loadReportData() {
         const selectedDate = document.getElementById('reportDate').value;
         const tbody = document.getElementById('reportTableBody');
         tbody.innerHTML = '';
 
-        // جلب قائمة الموظفين الأساسية وسجلات الحضور
-        const employees = JSON.parse(localStorage.getItem('employees') || localStorage.getItem('employeesList') || '[]');
-        const attendance = JSON.parse(localStorage.getItem('attendanceRecords') || localStorage.getItem('attendance') || '[]');
+        // البحث الشامل في كافة المفاتيح المحتملة للتخزين المحلي
+        let records = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            let key = localStorage.key(i);
+            if (key.includes('attendance') || key.includes('record') || key.includes('Employee')) {
+                try {
+                    let data = JSON.parse(localStorage.getItem(key));
+                    if (Array.isArray(data)) {
+                        records = records.concat(data);
+                    }
+                } catch (e) {}
+            }
+        }
+
+        // إزالة التكرارات إن وجدت
+        records = Array.from(new Set(records.map(JSON.stringify))).map(JSON.parse);
+
+        // تصفية السجلات حسب التاريخ المختار، أو جلب المتاح إذا لم يطابق التاريخ حرفياً
+        let filtered = records.filter(r => r.date === selectedDate);
+        if (filtered.length === 0 && records.length > 0) {
+            filtered = records; // عرض المتاح لتجنب الفراغ
+        }
 
         let presentCount = 0, lateCount = 0, leaveCount = 0, absentCount = 0;
 
-        if (employees.length === 0 && attendance.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="color: #7f8c8d; padding: 20px;">لا توجد بيانات مسجلة في النظام حالياً</td></tr>`;
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="color: #7f8c8d; padding: 20px;">لا توجد سجلات حضور مسجلة لهذا التاريخ</td></tr>`;
+            updateStats(0, 0, 0, 0);
             return;
         }
 
-        // دمج الموظفين مع سجلات الحضور الخاصة بالتاريخ المحدد
-        let displayList = [];
-
-        if (employees.length > 0) {
-            employees.forEach(emp => {
-                const record = attendance.find(a => (a.code == emp.code || a.name == emp.name) && a.date === selectedDate);
-                if (record) {
-                    displayList.push(record);
-                } else {
-                    // إذا لم يتم تسجيله في هذا اليوم يعتبر غائباً افتراضياً أو لم يسجل
-                    displayList.push({
-                        code: emp.code || '-',
-                        name: emp.name,
-                        category: emp.category || emp.job || 'موظف',
-                        timeIn: '-',
-                        timeOut: '-',
-                        status: 'غائب',
-                        note: 'لم يتم تسجيل الحضور'
-                    });
-                }
-            });
-        } else {
-            // إذا وُجدت سجلات حضور مباشرة بدون قائمة موظفين منفصلة
-            displayList = attendance.filter(a => a.date === selectedDate);
-        }
-
-        if (displayList.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="color: #7f8c8d; padding: 20px;">لا توجد سجلات لهذا التاريخ</td></tr>`;
-            return;
-        }
-
-        displayList.forEach(rec => {
-            const status = rec.status || 'غائب';
+        filtered.forEach(rec => {
+            const status = rec.status || rec.state || 'حاضر';
             if (status.includes("حاضر")) presentCount++;
             else if (status.includes("متأخر")) lateCount++;
             else if (status.includes("مجاز")) leaveCount++;
             else absentCount++;
 
-            let statusColor = '#27ae60';
-            if (status.includes("غائب") || status.includes("لم يتم")) statusColor = '#c0392b';
-            else if (status.includes("متأخر")) statusColor = '#d35400';
+            let color = '#27ae60';
+            if (status.includes("غائب")) color = '#c0392b';
+            else if (status.includes("متأخر")) color = '#d35400';
 
             let row = `<tr>
-                <td>${rec.code || '-'}</td>
-                <td><b>${rec.name || 'مستخدم'}</b></td>
-                <td>${rec.category || 'موظف'}</td>
-                <td>${rec.timeIn || '-'}</td>
+                <td>${rec.code || rec.id || '-'}</td>
+                <td><b>${rec.name || rec.empName || 'مستخدم'}</b></td>
+                <td>${rec.category || rec.job || 'موظف'}</td>
+                <td>${rec.timeIn || rec.time || '-'}</td>
                 <td>${rec.timeOut || '-'}</td>
-                <td><span style="color: ${statusColor}; font-weight: bold;">${status}</span></td>
+                <td><span style="color: ${color}; font-weight: bold;">${status}</span></td>
                 <td>${rec.note || rec.reason || '-'}</td>
             </tr>`;
             tbody.innerHTML += row;
         });
 
-        document.getElementById('statPresent').innerText = `إجمالي الحضور: ${presentCount + lateCount}`;
-        document.getElementById('statLate').innerText = `المتأخرين: ${lateCount}`;
-        document.getElementById('statLeave').innerText = `المجازين: ${leaveCount}`;
-        document.getElementById('statAbsent').innerText = `الغائبين: ${absentCount}`;
+        updateStats(presentCount + lateCount, lateCount, leaveCount, absentCount);
+    }
+
+    function updateStats(present, late, leave, absent) {
+        document.getElementById('statPresent').innerText = `إجمالي الحضور: ${present}`;
+        document.getElementById('statLate').innerText = `المتأخرين: ${late}`;
+        document.getElementById('statLeave').innerText = `المجازين: ${leave}`;
+        document.getElementById('statAbsent').innerText = `الغائبين: ${absent}`;
     }
 
     function filterTable(type) {
@@ -232,11 +222,20 @@
         });
     }
 
-    function exportExcel() {
-        alert("جاري تصدير الجدول إلى ملف Excel...");
+    function exportToExcel() {
+        let table = document.querySelector("table");
+        let html = table.outerHTML;
+        let blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = `attendance_report_${new Date().toISOString().slice(0,10)}.xls`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     }
 
-    window.onload = renderReport;
+    window.onload = loadReportData;
 </script>
 
 </body>
