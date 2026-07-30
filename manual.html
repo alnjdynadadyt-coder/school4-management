@@ -13,11 +13,12 @@
         th { background-color: #007bff; color: white; }
         
         /* تخصيص وتوسيع مساحة الاسم وتصغير حقل الانصراف */
-        th:nth-child(1), td:nth-child(1) { width: 22%; min-width: 120px; font-weight: bold; }
-        th:nth-child(5), td:nth-child(5) { width: 110px; }
-        td:nth-child(5) input[type="time"] { width: 90px; padding: 5px; font-size: 13px; text-align: center; }
+        th:nth-child(1), td:nth-child(1) { width: 20%; min-width: 110px; font-weight: bold; }
+        th:nth-child(8), td:nth-child(8) { width: 130px; }
+        td:nth-child(5) input[type="time"] { width: 85px; padding: 5px; font-size: 13px; text-align: center; }
 
-        .btn-del { background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; }
+        .btn-edit { background: #ffc107; color: #333; border: none; padding: 5px 8px; border-radius: 3px; cursor: pointer; font-weight: bold; margin-left: 3px; }
+        .btn-del { background: #ff4d4d; color: white; border: none; padding: 5px 8px; border-radius: 3px; cursor: pointer; font-weight: bold; }
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
     </style>
 </head>
@@ -38,7 +39,7 @@
         </select>
         <input type="text" id="reason" placeholder="سبب الغياب أو الملاحظة">
         <input type="time" id="customTime">
-        <button onclick="registerAttendance()" style="background:#007bff; color:white; font-weight:bold;">تسجيل يدوي</button>
+        <button id="actionBtn" onclick="saveAttendance()" style="background:#007bff; color:white; font-weight:bold;">تسجيل يدوي</button>
     </div>
 
     <table>
@@ -66,6 +67,8 @@
     document.getElementById('dateSelector').valueAsDate = new Date();
     document.getElementById('customTime').value = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false});
 
+    let editingId = null;
+
     const getLimit = (type, dayIndex, timeInput) => {
         const [h, m] = timeInput.split(':').map(Number);
         const timeVal = h * 60 + m;
@@ -90,7 +93,10 @@
                     <td><input type="time" onchange="updateExitTime('${d.id}', this.value)" value="${data.exitTime || ''}"></td>
                     <td>${data.status}</td>
                     <td>${data.reason || ''}</td>
-                    <td><button class="btn-del" onclick="deleteAtt('${d.id}')">حذف</button></td>
+                    <td>
+                        <button class="btn-edit" onclick="editAtt('${d.id}', '${data.empCode}', '${data.status}', '${data.time}', '${data.reason || ''}')">تعديل</button>
+                        <button class="btn-del" onclick="deleteAtt('${d.id}')">حذف</button>
+                    </td>
                 </tr>`;
             });
             document.getElementById('attendanceTable').innerHTML = rows;
@@ -101,7 +107,22 @@
         await setDoc(doc(db, 'attendance', id), { exitTime: time }, { merge: true }); 
     };
 
-    window.registerAttendance = async () => {
+    window.editAtt = (id, code, status, time, reason) => {
+        editingId = id;
+        document.getElementById('empCode').value = code;
+        document.getElementById('status').value = status;
+        document.getElementById('reason').value = reason;
+        if(time && time !== '-') {
+            document.getElementById('customTime').value = time;
+        }
+        const btn = document.getElementById('actionBtn');
+        btn.innerText = "تحديث البيانات";
+        btn.style.background = "#ffc107";
+        btn.style.color = "#333";
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.saveAttendance = async () => {
         const code = document.getElementById('empCode').value.trim();
         const date = document.getElementById('dateSelector').value;
         const statusRaw = document.getElementById('status').value;
@@ -119,27 +140,55 @@
         if (status === "حاضر") {
             status = (timeInput > getLimit(empData.type, dayIndex, timeInput)) ? "متأخر" : "حاضر";
         }
-        
-        const q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", date));
-        if (!(await getDocs(q)).empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
-        
-        await addDoc(collection(db, "attendance"), { 
-            empCode: code, 
-            name: empData.name, 
-            status, 
-            time: (status === "غائب" || status === "مجاز") ? "-" : timeInput, 
-            exitTime: "", 
-            date, 
-            day: new Date(date).toLocaleDateString('ar-EG', {weekday: 'long'}), 
-            reason: reason 
-        });
-        
-        alert("تم التسجيل بنجاح كـ: " + status);
-        document.getElementById('empCode').value = '';
-        document.getElementById('reason').value = '';
+
+        if (editingId) {
+            // تحديث السجل الموجود
+            await setDoc(doc(db, 'attendance', editingId), {
+                empCode: code,
+                name: empData.name,
+                status,
+                time: (status === "غائب" || status === "مجاز") ? "-" : timeInput,
+                reason: reason
+            }, { merge: true });
+
+            alert("تم تحديث البيانات بنجاح");
+            resetForm();
+        } else {
+            // إضافة سجل جديد
+            const q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", date));
+            if (!(await getDocs(q)).empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
+            
+            await addDoc(collection(db, "attendance"), { 
+                empCode: code, 
+                name: empData.name, 
+                status, 
+                time: (status === "غائب" || status === "مجاز") ? "-" : timeInput, 
+                exitTime: "", 
+                date, 
+                day: new Date(date).toLocaleDateString('ar-EG', {weekday: 'long'}), 
+                reason: reason 
+            });
+            
+            alert("تم التسجيل بنجاح كـ: " + status);
+            resetForm();
+        }
     };
 
-    window.deleteAtt = (id) => deleteDoc(doc(db, 'attendance', id));
+    function resetForm() {
+        editingId = null;
+        document.getElementById('empCode').value = '';
+        document.getElementById('reason').value = '';
+        const btn = document.getElementById('actionBtn');
+        btn.innerText = "تسجيل يدوي";
+        btn.style.background = "#007bff";
+        btn.style.color = "white";
+    }
+
+    window.deleteAtt = (id) => {
+        if(confirm("هل أنت متأكد من حذف هذا السجل؟")) {
+            deleteDoc(doc(db, 'attendance', id));
+        }
+    };
 
     renderTable();
 </script>
