@@ -24,7 +24,7 @@
     </div>
 
     <div class="box" style="background: #f8d7da; border-color: #f5c6cb;">
-        <h3 style="color: #721c24;">استيراد النسخة الاحتياوحة</h3>
+        <h3 style="color: #721c24;">استيراد النسخة الاحتياطية</h3>
         <p style="font-size: 13px; color: #721c24;">استعادة البيانات من ملف نسخ احتياطي سابق.</p>
         <input type="file" id="importFile" accept=".json" style="margin-bottom: 10px; width: 100%;">
         <button class="btn btn-restore" onclick="importBackup()">استيراد البيانات</button>
@@ -52,15 +52,13 @@
         try {
             let backupData = { employees: {}, attendance: {} };
             
-            // سحب الموظفين
             const empSnap = await getDocs(collection(db, "employees"));
             empSnap.forEach(d => { backupData.employees[d.id] = d.data(); });
 
-            // سحب الحضور
             const attSnap = await getDocs(collection(db, "attendance"));
             attSnap.forEach(d => { backupData.attendance[d.id] = d.data(); });
 
-            let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData));
+            let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
             let dlAnchor = document.createElement('a');
             dlAnchor.setAttribute("href", dataStr);
             dlAnchor.setAttribute("download", "school_backup_" + new Date().toISOString().split('T')[0] + ".json");
@@ -76,37 +74,46 @@
 
     window.importBackup = async () => {
         const fileInput = document.getElementById('importFile');
-        if (fileInput.files.length === 0) {
+        if (!fileInput.files || fileInput.files.length === 0) {
             alert("يرجى اختيار ملف النسخة الاحتياطية أولاً!");
             return;
         }
 
+        const file = fileInput.files[0];
         const reader = new FileReader();
+
         reader.onload = async function(event) {
             try {
                 const data = JSON.parse(event.target.result);
+                let countEmployees = 0;
+                let countAttendance = 0;
                 
-                // استيراد الموظفين
                 if (data.employees) {
                     for (let id in data.employees) {
                         await setDoc(doc(db, "employees", id), data.employees[id]);
+                        countEmployees++;
                     }
                 }
 
-                // استيراد الحضور
                 if (data.attendance) {
                     for (let id in data.attendance) {
                         await setDoc(doc(db, "attendance", id), data.attendance[id]);
+                        countAttendance++;
                     }
                 }
 
-                alert("تم استيراد البيانات بنجاح إلى النظام!");
+                alert(`تم استيراد البيانات بنجاح!\n- الموظفين: ${countEmployees}\n- سجلات الحضور: ${countAttendance}`);
             } catch (e) {
                 console.error(e);
-                alert("ملف غير صالح أو حدث خطأ أثناء الاستيراد.");
+                alert("ملف غير صالح أو حدث خطأ أثناء قراءة البيانات.");
             }
         };
-        reader.readAsText(fileInput.files[0]);
+
+        reader.onerror = function() {
+            alert("فشل في قراءة الملف من الجهاز.");
+        };
+
+        reader.readAsText(file);
     };
 </script>
 </body>
