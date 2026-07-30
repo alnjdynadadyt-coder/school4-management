@@ -183,7 +183,6 @@
 
         let recordedList = Object.values(cachedAttendance);
 
-        // حساب الإحصائيات العامة قبل التصفية الدقيقة
         Object.values(cachedAttendance).forEach(r => {
             let s = r.status || "حاضر";
             if (s === "حاضر") pCount++;
@@ -191,7 +190,6 @@
             else if (s === "مجاز") lvCount++;
         });
 
-        // تصفية حسب الفئة وحسب الحالة المطلوبة، وترتيب تصاعدي حسب الكود
         recordedList = recordedList.filter(record => {
             let empInfo = cachedEmployees[record.empCode] || {};
             let empType = record.type || empInfo.type || '-';
@@ -205,7 +203,7 @@
 
         if (recordedList.length === 0) {
             document.getElementById('reportTable').innerHTML = `<tr><td colspan="7" style="color: #6c757d;">لا توجد سجلات مطابقة لهذه الفئة والحالة</td></tr>`;
-            updateStats(pCount, lCount, lvCount, 0);
+            updateStats(pCount, lCount, lvCount, calculateAbsentCount(selectedCategory));
             return;
         }
 
@@ -229,8 +227,6 @@
         });
 
         document.getElementById('reportTable').innerHTML = rows;
-        
-        // حساب المتغيبين للفئة المحددة أو الكل
         let absentCount = calculateAbsentCount(selectedCategory);
         updateStats(pCount, lCount, lvCount, absentCount);
     };
@@ -299,25 +295,30 @@
         document.getElementById('printReportTitle').innerText = `موظفون لم يسجلوا انصرافهم (${selectedCategory})`;
 
         let rows = "";
+        let count = 0;
+        
         let sortedAttendance = Object.values(cachedAttendance).sort((a, b) => Number(a.empCode || 0) - Number(b.empCode || 0));
 
         sortedAttendance.forEach(record => {
+            // التحقق من وجود سجل حضور حقيقي وأن وقت الحضور ليس فارغاً وأن وقت الانصراف غير موجود '-'
+            let timeVal = record.time || "-";
             let exitTime = record.exitTime || "-";
             let status = record.status || "حاضر";
 
-            if (exitTime === "-" && status !== "غائب") {
+            if (timeVal !== "-" && exitTime === "-" && status !== "غائب") {
                 let empInfo = cachedEmployees[record.empCode] || {};
                 let empType = record.type || empInfo.type || '-';
                 
                 if (selectedCategory !== "الكل" && empType !== selectedCategory) return;
 
+                count++;
                 let empName = record.name || empInfo.name || 'مستخدم';
 
                 rows += `<tr>
                     <td>${record.empCode}</td>
                     <td style="font-weight:bold; text-align:right; padding-right:15px;">${empName}</td>
                     <td>${empType}</td>
-                    <td>${record.time || '-'}</td>
+                    <td>${timeVal}</td>
                     <td>-</td>
                     <td style="font-weight:bold; color: orange;">${status} (بدون انصراف)</td>
                     <td>${record.reason || '-'}</td>
@@ -325,11 +326,20 @@
             }
         });
 
-        if (rows === "") {
-            rows = `<tr><td colspan="7" style="color: green; font-weight: bold;">ممتاز! الجميع في هذه الفئة قاموا بتسجيل الانصراف.</td></tr>`;
+        if (rows === "" || count === 0) {
+            rows = `<tr><td colspan="7" style="color: green; font-weight: bold;">ممتاز! لا يوجد أحد في هذه الفئة مسجل حضور وبدون انصراف.</td></tr>`;
         }
 
         document.getElementById('reportTable').innerHTML = rows;
+        
+        let pCount = 0, lCount = 0, lvCount = 0;
+        Object.values(cachedAttendance).forEach(r => {
+            let s = r.status || "حاضر";
+            if (s === "حاضر") pCount++;
+            else if (s === "متأخر") lCount++;
+            else if (s === "مجاز") lvCount++;
+        });
+        updateStats(pCount, lCount, lvCount, calculateAbsentCount(selectedCategory));
     };
 
     function updateStats(p, l, lv, a) {
@@ -362,7 +372,6 @@
         document.body.removeChild(a);
     };
 
-    // تحميل التقرير الافتراضي عند فتح الصفحة
     filterByStatus('all');
 </script>
 </body>
