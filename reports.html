@@ -6,14 +6,17 @@
     <style>
         body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
         .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .input-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; background: #fff3cd; padding: 15px; border-radius: 8px; align-items: center; }
-        input, select, button { padding: 10px; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .input-group { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; background: #fff3cd; padding: 15px; border-radius: 8px; align-items: center; }
+        input, select, button { padding: 8px 10px; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: bold; }
         button { color: white; border: none; }
         .btn-show { background: #ffc107; color: #333; }
+        .btn-present { background: #28a745; }
+        .btn-late { background: #fd7e14; }
+        .btn-leave { background: #17a2b8; }
         .btn-absent { background: #dc3545; }
-        .btn-nocheck { background: #fd7e14; }
+        .btn-nocheck { background: #6f42c1; }
         .btn-excel { background: #28a745; }
-        .btn-pdf { background: #17a2b8; }
+        .btn-pdf { background: #343a40; }
         
         .report-header { text-align: center; margin-bottom: 15px; display: none; }
         .report-header h3 { margin: 5px 0; color: #333; }
@@ -22,9 +25,9 @@
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; word-wrap: break-word; }
         th { background-color: #ffc107; color: #333; }
         
-        /* تخصيص عرض الأعمدة: إعطاء مساحة واسعة للاسم وتضييق أوقات الحضور والانصراف والتصنيف */
+        /* تخصيص عرض الأعمدة */
         th:nth-child(1), td:nth-child(1) { width: 8%; }  /* الكود */
-        th:nth-child(2), td:nth-child(2) { width: 25%; } /* الاسم (مساحة أوسع) */
+        th:nth-child(2), td:nth-child(2) { width: 25%; } /* الاسم */
         th:nth-child(3), td:nth-child(3) { width: 12%; } /* التصنيف */
         th:nth-child(4), td:nth-child(4) { width: 12%; } /* وقت الحضور */
         th:nth-child(5), td:nth-child(5) { width: 12%; } /* وقت الانصراف */
@@ -57,8 +60,8 @@
     <h2 style="color:#d39e00; text-align:center;">📊 تقارير الحضور والغياب اليومية</h2>
     
     <div class="input-group">
-        <label>اختر تاريخ التقرير:</label>
-        <input type="date" id="reportDate" onchange="generateReport()" style="background: white; font-weight: normal;">
+        <label>التاريخ:</label>
+        <input type="date" id="reportDate" onchange="applyCurrentFilter()" style="background: white; font-weight: normal;">
         
         <label>التصنيف:</label>
         <select id="categoryFilter" onchange="applyCurrentFilter()" style="background: white;">
@@ -69,11 +72,14 @@
             <option value="حارس">حارس</option>
         </select>
 
-        <button class="btn-show" onclick="currentMode='all'; generateReport();">عرض الكل</button>
-        <button class="btn-absent" onclick="currentMode='absent'; showAbsentList();">كشف المتغيبين</button>
-        <button class="btn-nocheck" onclick="currentMode='noexit'; filterNoExit();">لم يسجلوا الانصراف</button>
-        <button class="btn-excel" onclick="exportExcel()">تصدير Excel</button>
-        <button class="btn-pdf" onclick="window.print()">تصدير PDF</button>
+        <button class="btn-show" onclick="filterByStatus('all')">عرض الكل</button>
+        <button class="btn-present" onclick="filterByStatus('حاضر')">الحاضرون</button>
+        <button class="btn-late" onclick="filterByStatus('متأخر')">المتأخرون</button>
+        <button class="btn-leave" onclick="filterByStatus('مجاز')">المجازون</button>
+        <button class="btn-absent" onclick="showAbsentList()">المتغيبون</button>
+        <button class="btn-nocheck" onclick="filterNoExit()">بدون انصراف</button>
+        <button class="btn-excel" onclick="exportExcel()">Excel</button>
+        <button class="btn-pdf" onclick="window.print()">PDF</button>
     </div>
 
     <div class="stats" id="statsBox">
@@ -119,7 +125,8 @@
 
     let cachedEmployees = {};
     let cachedAttendance = {};
-    window.currentMode = 'all'; // لتذكر الوضع الحالي عند تغيير التصنيف
+    window.currentMode = 'all';
+    window.currentSubStatus = 'all';
 
     function getFormattedDateString(dateVal) {
         if (!dateVal) return "";
@@ -128,22 +135,22 @@
         return d.toLocaleDateString('ar-IQ', options);
     }
 
-    window.applyCurrentFilter = () => {
-        if (window.currentMode === 'all') generateReport();
-        else if (window.currentMode === 'absent') showAbsentList();
-        else if (window.currentMode === 'noexit') filterNoExit();
+    window.applyCurrentFilter = async () => {
+        if (Object.keys(cachedEmployees).length === 0) {
+            await loadAllData();
+        }
+        if (window.currentMode === 'all' || window.currentMode === 'status') {
+            filterByStatus(window.currentSubStatus);
+        } else if (window.currentMode === 'absent') {
+            showAbsentList();
+        } else if (window.currentMode === 'noexit') {
+            filterNoExit();
+        }
     };
 
-    window.generateReport = async () => {
-        window.currentMode = 'all';
+    async function loadAllData() {
         const dateVal = document.getElementById('reportDate').value;
-        const selectedCategory = document.getElementById('categoryFilter').value;
-        
         document.getElementById('printDate').innerText = getFormattedDateString(dateVal);
-        document.getElementById('printReportTitle').innerText = `تقرير الحضور والغياب (عرض المسجلين - ${selectedCategory})`;
-        
-        const tbody = document.getElementById('reportTable');
-        tbody.innerHTML = `<tr><td colspan="7">جاري جلب البيانات...</td></tr>`;
         
         try {
             const empSnap = await getDocs(collection(db, "employees"));
@@ -157,44 +164,56 @@
                 let data = d.data();
                 cachedAttendance[data.empCode] = data; 
             });
-
-            renderActiveAttendance(cachedEmployees, cachedAttendance, selectedCategory);
-
         } catch (error) {
             console.error(error);
-            tbody.innerHTML = `<tr><td colspan="7" style="color:red;">حدث خطأ أثناء جلب البيانات من القاعدة</td></tr>`;
         }
-    };
+    }
 
-    function renderActiveAttendance(employees, attendanceMap, categoryFilter) {
+    window.filterByStatus = async (statusType) => {
+        window.currentMode = 'status';
+        window.currentSubStatus = statusType;
+        await loadAllData();
+
+        const selectedCategory = document.getElementById('categoryFilter').value;
+        let titleSuffix = statusType === 'all' ? 'جميع المسجلين' : `قائمة (${statusType})`;
+        document.getElementById('printReportTitle').innerText = `تقرير الحضور والغياب (${titleSuffix} - ${selectedCategory})`;
+
         let rows = "";
         let pCount = 0, lCount = 0, lvCount = 0;
 
-        let recordedList = Object.values(attendanceMap);
+        let recordedList = Object.values(cachedAttendance);
 
-        // تصفية حسب التصنيف وترتيب تصاعدي حسب الكود الرقمي
+        // حساب الإحصائيات العامة قبل التصفية الدقيقة
+        Object.values(cachedAttendance).forEach(r => {
+            let s = r.status || "حاضر";
+            if (s === "حاضر") pCount++;
+            else if (s === "متأخر") lCount++;
+            else if (s === "مجاز") lvCount++;
+        });
+
+        // تصفية حسب الفئة وحسب الحالة المطلوبة، وترتيب تصاعدي حسب الكود
         recordedList = recordedList.filter(record => {
-            let empInfo = employees[record.empCode] || {};
+            let empInfo = cachedEmployees[record.empCode] || {};
             let empType = record.type || empInfo.type || '-';
-            if (categoryFilter !== "الكل" && empType !== categoryFilter) return false;
+            if (selectedCategory !== "الكل" && empType !== selectedCategory) return false;
+
+            let status = record.status || "حاضر";
+            if (statusType !== 'all' && status !== statusType) return false;
+
             return true;
         }).sort((a, b) => Number(a.empCode || 0) - Number(b.empCode || 0));
 
         if (recordedList.length === 0) {
-            document.getElementById('reportTable').innerHTML = `<tr><td colspan="7" style="color: #6c757d;">لا توجد سجلات حضور مسجلة لهذا التاريخ والفئة حتى الآن</td></tr>`;
-            updateStats(0, 0, 0, 0);
+            document.getElementById('reportTable').innerHTML = `<tr><td colspan="7" style="color: #6c757d;">لا توجد سجلات مطابقة لهذه الفئة والحالة</td></tr>`;
+            updateStats(pCount, lCount, lvCount, 0);
             return;
         }
 
         recordedList.forEach(record => {
             let status = record.status || "حاضر";
-            if (status === "حاضر") pCount++;
-            else if (status === "متأخر") lCount++;
-            else if (status === "مجاز") lvCount++;
-
             let color = status==='حاضر'?'green':status==='متأخر'?'orange':'blue';
             
-            let empInfo = employees[record.empCode] || {};
+            let empInfo = cachedEmployees[record.empCode] || {};
             let empType = record.type || empInfo.type || '-';
             let empName = record.name || empInfo.name || 'مستخدم';
 
@@ -210,21 +229,32 @@
         });
 
         document.getElementById('reportTable').innerHTML = rows;
-        updateStats(pCount, lCount, lvCount, 0);
+        
+        // حساب المتغيبين للفئة المحددة أو الكل
+        let absentCount = calculateAbsentCount(selectedCategory);
+        updateStats(pCount, lCount, lvCount, absentCount);
+    };
+
+    function calculateAbsentCount(categoryFilter) {
+        let count = 0;
+        for (let code in cachedEmployees) {
+            let emp = cachedEmployees[code];
+            if (categoryFilter !== "الكل" && (emp.type || '-') !== categoryFilter) continue;
+            if (!cachedAttendance[code]) count++;
+        }
+        return count;
     }
 
-    window.showAbsentList = () => {
+    window.showAbsentList = async () => {
         window.currentMode = 'absent';
-        const dateVal = document.getElementById('reportDate').value;
+        await loadAllData();
         const selectedCategory = document.getElementById('categoryFilter').value;
         
-        document.getElementById('printDate').innerText = getFormattedDateString(dateVal);
         document.getElementById('printReportTitle').innerText = `كشف المتغيبين (لم يسجلوا الحضور - ${selectedCategory})`;
 
         let rows = "";
         let absentCount = 0;
 
-        // استخراج وترتيب الموظفين الغائبين تصاعدياً حسب الكود الرقمي
         let sortedCodes = Object.keys(cachedEmployees).sort((a, b) => Number(a) - Number(b));
 
         sortedCodes.forEach(code => {
@@ -251,30 +281,24 @@
 
         document.getElementById('reportTable').innerHTML = rows;
         
-        let pCount = Object.values(cachedAttendance).filter(r => r.status === "حاضر").length;
-        let lCount = Object.values(cachedAttendance).filter(r => r.status === "متأخر").length;
-        let lvCount = Object.values(cachedAttendance).filter(r => r.status === "مجاز").length;
+        let pCount = 0, lCount = 0, lvCount = 0;
+        Object.values(cachedAttendance).forEach(r => {
+            let s = r.status || "حاضر";
+            if (s === "حاضر") pCount++;
+            else if (s === "متأخر") lCount++;
+            else if (s === "مجاز") lvCount++;
+        });
         updateStats(pCount, lCount, lvCount, absentCount);
     };
 
-    function updateStats(p, l, lv, a) {
-        document.getElementById('countPresent').innerText = p;
-        document.getElementById('countLate').innerText = l;
-        document.getElementById('countLeave').innerText = lv;
-        document.getElementById('countAbsent').innerText = a;
-    }
-
-    window.filterNoExit = () => {
+    window.filterNoExit = async () => {
         window.currentMode = 'noexit';
-        const dateVal = document.getElementById('reportDate').value;
+        await loadAllData();
         const selectedCategory = document.getElementById('categoryFilter').value;
         
-        document.getElementById('printDate').innerText = getFormattedDateString(dateVal);
         document.getElementById('printReportTitle').innerText = `موظفون لم يسجلوا انصرافهم (${selectedCategory})`;
 
         let rows = "";
-        
-        // ترتيب السجلات تصاعدياً حسب الكود
         let sortedAttendance = Object.values(cachedAttendance).sort((a, b) => Number(a.empCode || 0) - Number(b.empCode || 0));
 
         sortedAttendance.forEach(record => {
@@ -308,6 +332,13 @@
         document.getElementById('reportTable').innerHTML = rows;
     };
 
+    function updateStats(p, l, lv, a) {
+        document.getElementById('countPresent').innerText = p;
+        document.getElementById('countLate').innerText = l;
+        document.getElementById('countLeave').innerText = lv;
+        document.getElementById('countAbsent').innerText = a;
+    }
+
     window.exportExcel = () => {
         const dateVal = document.getElementById('reportDate').value;
         let fullDateStr = getFormattedDateString(dateVal);
@@ -331,7 +362,8 @@
         document.body.removeChild(a);
     };
 
-    generateReport();
+    // تحميل التقرير الافتراضي عند فتح الصفحة
+    filterByStatus('all');
 </script>
 </body>
 </html>
