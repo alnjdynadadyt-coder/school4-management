@@ -10,6 +10,7 @@
         .btn { padding: 12px 25px; font-size: 16px; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
         .btn-backup { background: #28a745; }
         .btn-restore { background: #dc3545; }
+        #statusMsg { margin-top: 10px; font-weight: bold; color: #333; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -28,6 +29,7 @@
         <p style="font-size: 13px; color: #721c24;">استعادة البيانات من ملف نسخ احتياطي سابق.</p>
         <input type="file" id="importFile" accept=".json" style="margin-bottom: 10px; width: 100%;">
         <button class="btn btn-restore" onclick="importBackup()">استيراد البيانات</button>
+        <div id="statusMsg"></div>
     </div>
 
     <br>
@@ -48,8 +50,15 @@
         measurementId: "G-G89TZ8CC7Y"
     }));
 
+    const showStatus = (text, color = "#333") => {
+        const msg = document.getElementById('statusMsg');
+        msg.style.color = color;
+        msg.innerText = text;
+    };
+
     window.exportBackup = async () => {
         try {
+            showStatus("جاري تجهيز النسخة الاحتياطية...", "#007bff");
             let backupData = { employees: {}, attendance: {} };
             
             const empSnap = await getDocs(collection(db, "employees"));
@@ -65,10 +74,10 @@
             document.body.appendChild(dlAnchor);
             dlAnchor.click();
             dlAnchor.remove();
-            alert("تم تحميل النسخة الاحتياطية بنجاح!");
+            showStatus("تم تحميل النسخة الاحتياطية بنجاح!", "green");
         } catch (e) {
             console.error(e);
-            alert("حدث خطأ أثناء تصدير النسخة الاحتياطية.");
+            showStatus("حدث خطأ أثناء تصدير النسخة الاحتياطية.", "red");
         }
     };
 
@@ -80,14 +89,19 @@
         }
 
         const file = fileInput.files[0];
+        showStatus("جاري قراءة الملف...", "#007bff");
+
         const reader = new FileReader();
 
         reader.onload = async function(event) {
             try {
+                showStatus("جاري تحليل بيانات الملف...", "#007bff");
                 const data = JSON.parse(event.target.result);
                 let countEmployees = 0;
                 let countAttendance = 0;
                 
+                showStatus("جاري رفع البيانات إلى قاعدة البيانات...", "#007bff");
+
                 if (data.employees) {
                     for (let id in data.employees) {
                         await setDoc(doc(db, "employees", id), data.employees[id]);
@@ -102,15 +116,18 @@
                     }
                 }
 
+                showStatus(`تم استيراد البيانات بنجاح! (موظفين: ${countEmployees}, حضور: ${countAttendance})`, "green");
                 alert(`تم استيراد البيانات بنجاح!\n- الموظفين: ${countEmployees}\n- سجلات الحضور: ${countAttendance}`);
             } catch (e) {
                 console.error(e);
-                alert("ملف غير صالح أو حدث خطأ أثناء قراءة البيانات.");
+                showStatus("خطأ: الملف غير صالح أو تالف.", "red");
+                alert("ملف غير صالح أو حدث خطأ أثناء تحليل JSON.");
             }
         };
 
         reader.onerror = function() {
-            alert("فشل في قراءة الملف من الجهاز.");
+            showStatus("خطأ في قراءة الملف من الجهاز.", "red");
+            alert("فشل في قراءة الملف.");
         };
 
         reader.readAsText(file);
