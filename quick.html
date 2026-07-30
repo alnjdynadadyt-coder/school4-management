@@ -6,7 +6,13 @@
     <style>
         body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
         .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .search-box { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+        .search-box { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+        
+        /* تنسيق أزرار التصنيفات */
+        .filter-buttons { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .btn-filter { background: #6c757d; color: white; padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; }
+        .btn-filter.active { background: #28a745; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
         th { background-color: #28a745; color: white; }
@@ -21,6 +27,15 @@
     <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
     <h2 style="color:#28a745; text-align:center;">⚡ لوحة التسجيل السريع للأسماء</h2>
     
+    <!-- أزرار تصفية الفئات السريعة -->
+    <div class="filter-buttons">
+        <button class="btn-filter active" onclick="filterByCategory('الكل', this)">الكل</button>
+        <button class="btn-filter" onclick="filterByCategory('مدرس', this)">مدرس</button>
+        <button class="btn-filter" onclick="filterByCategory('إداري', this)">إداري</button>
+        <button class="btn-filter" onclick="filterByCategory('موظف', this)">موظف</button>
+        <button class="btn-filter" onclick="filterByCategory('حارس', this)">حارس</button>
+    </div>
+
     <!-- حقل البحث الفوري لتصفية الأسماء -->
     <input type="text" id="searchEmp" class="search-box" placeholder="🔍 ابحث عن اسم الموظف لتسجيله بسرعة..." onkeyup="filterTable()">
 
@@ -82,16 +97,36 @@
         }
     };
 
-    // جلب الموظفين وعرضهم مع خاصية البحث الفوري
     let allEmployees = [];
+    let currentCategory = 'الكل';
+
     async function loadEmployees() {
         const snap = await getDocs(collection(db, "employees"));
         allEmployees = [];
         snap.forEach(d => {
             allEmployees.push({ id: d.id, ...d.data() });
         });
-        renderList(allEmployees);
+        filterTable();
     }
+
+    window.filterByCategory = (category, btnElement) => {
+        currentCategory = category;
+        document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+        btnElement.classList.add('active');
+        filterTable();
+    };
+
+    window.filterTable = () => {
+        const searchVal = document.getElementById('searchEmp').value.toLowerCase();
+        
+        const filtered = allEmployees.filter(e => {
+            const matchesCategory = (currentCategory === 'الكل' || e.type === currentCategory);
+            const matchesSearch = e.name.toLowerCase().includes(searchVal);
+            return matchesCategory && matchesSearch;
+        });
+
+        renderList(filtered);
+    };
 
     function renderList(list) {
         let qRows = "";
@@ -105,14 +140,8 @@
                 </td>
             </tr>`;
         });
-        document.getElementById('quickAttendanceTable').innerHTML = qRows;
+        document.getElementById('quickAttendanceTable').innerHTML = qRows || `<tr><td colspan="3" style="color: #6c757d;">لا توجد نتائج مطابقة</td></tr>`;
     }
-
-    window.filterTable = () => {
-        const searchVal = document.getElementById('searchEmp').value.toLowerCase();
-        const filtered = allEmployees.filter(e => e.name.toLowerCase().includes(searchVal));
-        renderList(filtered);
-    };
 
     loadEmployees();
 </script>
