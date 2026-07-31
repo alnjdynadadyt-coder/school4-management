@@ -16,8 +16,13 @@
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
         th { background-color: #28a745; color: white; }
-        .btn-quick { background: #28a745; color: white; padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
-        .btn-exit { background: #6f42c1; color: white; padding: 8px 15px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        
+        /* تنسيق الأزرار بالترتيب المطلوب: حضور، انصراف، مجاز، غائب */
+        .btn-quick { background: #28a745; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .btn-exit { background: #6f42c1; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .btn-excused { background: #17a2b8; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .btn-absent { background: #dc3545; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
     </style>
 </head>
@@ -85,15 +90,21 @@
         }
         
         const snap = await getDocs(q);
+
         if (action === 'attendance') {
             if (!snap.empty) { alert("الموظف مسجل بالفعل!"); return; }
             let status = (timeInput > getLimit(type, dayIndex, timeInput)) ? "متأخر" : "حاضر";
             await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: timeInput, exitTime: "", date, day: now.toLocaleDateString('ar-EG', {weekday: 'long'}), reason: "" });
             alert("تم تسجيل حضور: " + name);
-        } else {
+        } else if (action === 'exit') {
             if (snap.empty) { alert("لم يتم تسجيل الحضور بعد!"); return; }
             await setDoc(doc(db, 'attendance', snap.docs[0].id), { exitTime: timeInput }, { merge: true });
             alert("تم تسجيل انصراف: " + name);
+        } else if (action === 'excused' || action === 'absent') {
+            if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
+            let status = (action === 'excused') ? "مجاز" : "غائب";
+            await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: "-", exitTime: "-", date, day: now.toLocaleDateString('ar-EG', {weekday: 'long'}), reason: "" });
+            alert("تم تسجيل حالة " + status + ": " + name);
         }
     };
 
@@ -137,6 +148,8 @@
                 <td>
                     <button class="btn-quick" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'attendance')">حضور</button>
                     <button class="btn-exit" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'exit')">انصراف</button>
+                    <button class="btn-excused" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'excused')">مجاز</button>
+                    <button class="btn-absent" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'absent')">غائب</button>
                 </td>
             </tr>`;
         });
