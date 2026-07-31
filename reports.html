@@ -209,7 +209,7 @@
 
         recordedList.forEach(record => {
             let status = record.status || "حاضر";
-            let color = status==='حاضر'?'green':status==='متأخر'?'orange':'blue';
+            let color = status === 'حاضر' ? 'green' : (status === 'متأخر' ? 'orange' : (status === 'مجاز' ? 'blue' : 'red'));
             
             let empInfo = cachedEmployees[record.empCode] || {};
             let empType = record.type || empInfo.type || '-';
