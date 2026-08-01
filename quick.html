@@ -32,7 +32,9 @@
 <body>
 
 <div class="container">
-    <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
+    <!-- زر العودة سيختفي تلقائياً إذا فُتحت الصفحة كرابط خارجي مستقل -->
+    <a href="index.html" id="backDashboardBtn" class="back-link">← العودة لوحة التحكم الرئيسية</a>
+    
     <h2 style="color:#28a745; text-align:center;">⚡ لوحة التسجيل السريع للأسماء</h2>
     
     <!-- عرض اليوم والتاريخ الحالي -->
@@ -61,6 +63,14 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
     import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, where } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+    // التحقق التلقائي من نوع الفتح: إذا فُتحت الصفحة كصفحة مستقلة (رابط خارجي)، يختفي زر العودة للوحة التحكم
+    if (window.self === window.top && !document.referrer.includes(window.location.hostname)) {
+        const backBtn = document.getElementById('backDashboardBtn');
+        if (backBtn) {
+            backBtn.style.display = 'none';
+        }
+    }
 
     const db = getFirestore(initializeApp({
         apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
