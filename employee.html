@@ -33,12 +33,16 @@
     <div id="employeeCard" class="info-card">
         <h3 id="cardEmpName">---</h3>
         <div class="info-row">
-            <span class="info-label">تاريخ اليوم:</span>
+            <span class="info-label">يوم وتاريخ الحضور:</span>
             <span class="info-value" id="cardDate">---</span>
         </div>
         <div class="info-row">
             <span class="info-label">وقت الحضور:</span>
             <span class="info-value" id="cardTime">---</span>
+        </div>
+        <div class="info-row" id="exitRow" style="display: none;">
+            <span class="info-label">يوم وتاريخ الانصراف:</span>
+            <span class="info-value" id="cardExitDate">---</span>
         </div>
         <div class="info-row">
             <span class="info-label">وقت الانصراف:</span>
@@ -111,13 +115,13 @@
         if (!empSnap.exists()) return alert("كود الموظف غير صحيح!");
         
         const empData = empSnap.data();
-        const date = new Date().toISOString().split('T')[0];
+        const currentDate = new Date().toISOString().split('T')[0];
+        const currentDayName = new Date().toLocaleDateString('ar-EG', {weekday: 'long'});
         const dayIndex = new Date().getDay();
         const now = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false});
 
         let status = (now > getLimit(empData.type, dayIndex, now)) ? "متأخر" : "حاضر";
 
-        // جلب جميع سجلات هذا الموظف لترتيبها والعثور على آخر سجل حضور مفتوح (خاصة للحراس)
         const q = query(collection(db, "attendance"), where("empCode", "==", code));
         const snap = await getDocs(q);
         
@@ -132,18 +136,24 @@
             if (openRecord) {
                 targetDoc = openRecord;
                 existingData = openRecord;
-            } else if (docsList.length > 0 && docsList[0].date === date) {
+            } else if (docsList.length > 0 && docsList[0].date === currentDate) {
                 targetDoc = snap.docs.find(d => d.id === docsList[0].id);
                 existingData = docsList[0];
             }
         }
         
         if (action === 'attendance') {
-            if (existingData && existingData.date === date && existingData.time && existingData.time !== "" && existingData.time !== "---") {
+            if (existingData && existingData.date === currentDate && existingData.time && existingData.time !== "" && existingData.time !== "---") {
                 document.getElementById('cardEmpName').innerText = empData.name;
-                document.getElementById('cardDate').innerText = existingData.date;
+                document.getElementById('cardDate').innerText = `${existingData.day || ''} - ${existingData.date}`;
                 document.getElementById('cardTime').innerText = existingData.time;
                 document.getElementById('cardExit').innerText = existingData.exitTime || "---";
+                if(existingData.exitDate && existingData.exitDate !== existingData.date) {
+                    document.getElementById('exitRow').style.display = "flex";
+                    document.getElementById('cardExitDate').innerText = `${existingData.exitDay || ''} - ${existingData.exitDate}`;
+                } else {
+                    document.getElementById('exitRow').style.display = "none";
+                }
                 document.getElementById('cardStatus').innerText = existingData.status;
                 document.getElementById('cardStatus').style.color = (existingData.status === "متأخر") ? "#d9534f" : "#28a745";
                 document.getElementById('employeeCard').style.display = "block";
@@ -158,15 +168,16 @@
                 status, 
                 time: now, 
                 exitTime: "", 
-                date, 
-                day: new Date().toLocaleDateString('ar-EG', {weekday: 'long'}),
+                date: currentDate, 
+                day: currentDayName,
                 reason: "-"
             });
 
             document.getElementById('cardEmpName').innerText = empData.name;
-            document.getElementById('cardDate').innerText = date;
+            document.getElementById('cardDate').innerText = `${currentDayName} - ${currentDate}`;
             document.getElementById('cardTime').innerText = now;
             document.getElementById('cardExit').innerText = "---";
+            document.getElementById('exitRow').style.display = "none";
             document.getElementById('cardStatus').innerText = status;
             document.getElementById('cardStatus').style.color = (status === "متأخر") ? "#d9534f" : "#28a745";
             document.getElementById('employeeCard').style.display = "block";
@@ -179,16 +190,29 @@
                 return;
             }
 
-            await setDoc(doc(db, 'attendance', targetDoc.id), { exitTime: now }, { merge: true });
+            // تحديث وقت الانصراف وتاريخه ويومه
+            await setDoc(doc(db, 'attendance', targetDoc.id), { 
+                exitTime: now, 
+                exitDate: currentDate,
+                exitDay: currentDayName
+            }, { merge: true });
 
             document.getElementById('cardEmpName').innerText = empData.name;
-            document.getElementById('cardDate').innerText = existingData.date;
+            document.getElementById('cardDate').innerText = `${existingData.day || ''} - ${existingData.date}`;
             document.getElementById('cardTime').innerText = existingData.time || "---";
             document.getElementById('cardExit').innerText = now;
+            
+            if (currentDate !== existingData.date) {
+                document.getElementById('exitRow').style.display = "flex";
+                document.getElementById('cardExitDate').innerText = `${currentDayName} - ${currentDate}`;
+            } else {
+                document.getElementById('exitRow').style.display = "none";
+            }
+
             document.getElementById('cardStatus').innerText = existingData.status || "حاضر";
             document.getElementById('employeeCard').style.display = "block";
 
-            alert("تم تسجيل الانصراف بنجاح لتسجيل تاريخ: " + existingData.date);
+            alert("تم تسجيل الانصراف بنجاح لتاريخ الحضور: " + existingData.date);
         }
     };
 </script>
