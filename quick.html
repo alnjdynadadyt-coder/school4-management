@@ -8,6 +8,9 @@
         .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .search-box { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
         
+        /* ترويسة اليوم والتاريخ */
+        .date-badge { background: #e2f0d9; color: #385723; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 16px; border: 1px solid #b7e1cd; }
+
         /* تنسيق أزرار التصنيفات */
         .filter-buttons { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
         .btn-filter { background: #6c757d; color: white; padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; }
@@ -32,6 +35,9 @@
     <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
     <h2 style="color:#28a745; text-align:center;">⚡ لوحة التسجيل السريع للأسماء</h2>
     
+    <!-- عرض اليوم والتاريخ الحالي -->
+    <div id="currentDayDate" class="date-badge">جاري تحميل التاريخ...</div>
+
     <!-- أزرار تصفية الفئات السريعة -->
     <div class="filter-buttons">
         <button class="btn-filter active" onclick="filterByCategory('الكل', this)">الكل</button>
@@ -66,6 +72,12 @@
         measurementId: "G-G89TZ8CC7Y"
     }));
 
+    // عرض اليوم والتاريخ في الأعلى
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const dayName = now.toLocaleDateString('ar-EG', {weekday: 'long'});
+    document.getElementById('currentDayDate').innerText = `📅 اليوم: ${dayName} | التاريخ: ${dateStr}`;
+
     const getLimit = (type, dayIndex, timeInput) => {
         const [h, m] = timeInput.split(':').map(Number);
         const timeVal = h * 60 + m;
@@ -77,8 +89,6 @@
     };
 
     window.quickAction = async (code, name, type, action) => {
-        const date = new Date().toISOString().split('T')[0];
-        const now = new Date();
         const timeInput = now.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false});
         const dayIndex = now.getDay();
         
@@ -86,7 +96,7 @@
         if (action === 'exit' && type === "حارس") {
             q = query(collection(db, "attendance"), where("empCode", "==", code), where("exitTime", "==", ""));
         } else {
-            q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", date));
+            q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", dateStr));
         }
         
         const snap = await getDocs(q);
@@ -94,7 +104,7 @@
         if (action === 'attendance') {
             if (!snap.empty) { alert("الموظف مسجل بالفعل!"); return; }
             let status = (timeInput > getLimit(type, dayIndex, timeInput)) ? "متأخر" : "حاضر";
-            await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: timeInput, exitTime: "", date, day: now.toLocaleDateString('ar-EG', {weekday: 'long'}), reason: "" });
+            await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: timeInput, exitTime: "", date: dateStr, day: dayName, reason: "" });
             alert("تم تسجيل حضور: " + name);
         } else if (action === 'exit') {
             if (snap.empty) { alert("لم يتم تسجيل الحضور بعد!"); return; }
@@ -103,7 +113,7 @@
         } else if (action === 'excused' || action === 'absent') {
             if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
             let status = (action === 'excused') ? "مجاز" : "غائب";
-            await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: "-", exitTime: "-", date, day: now.toLocaleDateString('ar-EG', {weekday: 'long'}), reason: "" });
+            await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: "-", exitTime: "-", date: dateStr, day: dayName, reason: "" });
             alert("تم تسجيل حالة " + status + ": " + name);
         }
     };
