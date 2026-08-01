@@ -6,6 +6,10 @@
     <style>
         body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
         .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        
+        /* تنسيق ترويسة اليوم والتاريخ الجديدة */
+        .report-day-badge { background: #e2f0d9; color: #385723; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 16px; border: 1px solid #b7e1cd; }
+
         .input-group { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; background: #fff3cd; padding: 15px; border-radius: 8px; align-items: center; }
         input, select, button { padding: 8px 10px; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: bold; }
         button { color: white; border: none; }
@@ -59,6 +63,11 @@
 
     <h2 style="color:#d39e00; text-align:center;">📊 تقارير الحضور والغياب اليومية</h2>
     
+    <!-- ترويسة اليوم والتاريخ الجديدة -->
+    <div id="reportDayDateBadge" class="report-day-badge">
+        📅 اليوم والتاريخ: جاري التحميل...
+    </div>
+
     <div class="input-group">
         <label>التاريخ:</label>
         <input type="date" id="reportDate" onchange="applyCurrentFilter()" style="background: white; font-weight: normal;">
@@ -150,7 +159,11 @@
 
     async function loadAllData() {
         const dateVal = document.getElementById('reportDate').value;
-        document.getElementById('printDate').innerText = getFormattedDateString(dateVal);
+        const formattedDate = getFormattedDateString(dateVal);
+        
+        // تحديث ترويسة اليوم والتاريخ في الشاشة تلقائياً
+        document.getElementById('reportDayDateBadge').innerText = `📅 اليوم والتاريخ: ${formattedDate}`;
+        document.getElementById('printDate').innerText = formattedDate;
         
         try {
             const empSnap = await getDocs(collection(db, "employees"));
@@ -300,7 +313,6 @@
         let sortedAttendance = Object.values(cachedAttendance).sort((a, b) => Number(a.empCode || 0) - Number(b.empCode || 0));
 
         sortedAttendance.forEach(record => {
-            // التحقق من وجود سجل حضور حقيقي وأن وقت الحضور ليس فارغاً وأن وقت الانصراف غير موجود '-'
             let timeVal = record.time || "-";
             let exitTime = record.exitTime || "-";
             let status = record.status || "حاضر";
