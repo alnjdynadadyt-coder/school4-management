@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>لوحة تتبع المغادرين - إعدادية النجدين</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f7f6; padding: 20px; text-align: center; }
+        .container { max-width: 1000px; margin: auto; }
+        .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-top: 20px; }
+        
+        /* تصميم البطاقة التفاعلية مع وميض تحذيري */
+        .card { background: white; border: 2px solid #dc3545; border-radius: 10px; padding: 20px; text-align: right; box-shadow: 0 4px 10px rgba(220,53,69,0.3); animation: pulse 1.5s infinite; }
+        .card h3 { margin: 0 0 10px 0; color: #dc3545; font-size: 18px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+        .card p { margin: 8px 0; font-size: 15px; color: #333; }
+        .card span { font-weight: bold; color: #e0245e; }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220,53,69, 0.4); }
+            70% { transform: scale(1.01); box-shadow: 0 0 0 10px rgba(220,53,69, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220,53,69, 0); }
+        }
+        .no-alerts { background: #e2f0d9; color: #385723; padding: 20px; border-radius: 8px; font-weight: bold; font-size: 16px; border: 1px solid #b7e1cd; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
+    <h2 style="color: #dc3545;">🚨 لوحة متابعة المغادرين عن النطاق (أكثر من 400 متر)</h2>
+    <p style="color: #666;">تتحدث هذه الصفحة تلقائياً لتنبيه الإدارة في حال مغادرة أي موظف أو حارس لمحيط المدرسة.</p>
+    
+    <div id="alertsGrid" class="grid">
+        <div class="no-alerts">جاري فحص مواقع الموظفين النشطين...</div>
+    </div>
+</div>
+
+<!-- إشعار صوتي خفيف للتنبيه -->
+<audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getFirestore, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+    const db = getFirestore(initializeApp({
+        apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
+        authDomain: "school4-management.firebaseapp.com",
+        projectId: "school4-management",
+        storageBucket: "school4-management.firebasestorage.app",
+        messagingSenderId: "157481747196",
+        appId: "1:157481747196:web:ee4958d9589b8d01464d79",
+        measurementId: "G-G89TZ8CC7Y"
+    }));
+
+    const SCHOOL_LAT = 31.7296172;
+    const SCHOOL_LON = 44.9905462;
+    let previousAlertsCount = 0;
+
+    // دالة حساب المسافة بصيغة Haversine
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371e3;
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δφ = (lat2 - lat1) * Math.PI / 180;
+        const Δλ = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // مراقبة الحضور المفتوح (الذين لم يسجلوا انصراف بعد)
+    const currentDate = new Date().toISOString().split('T')[0];
+    const q = query(collection(db, "attendance"), where("date", "==", currentDate), where("exitTime", "==", ""));
+
+    onSnapshot(q, (snapshot) => {
+        let cardsHtml = "";
+        let currentAlertsCount = 0;
+
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            // نفترض أننا سنقوم بتخزين آخر إحداثيات يرسلها هاتف الموظف في قاعدة البيانات (lastLat, lastLon)
+            if (data.lastLat && data.lastLon) {
+                const distance = calculateDistance(data.lastLat, data.lastLon, SCHOOL_LAT, SCHOOL_LON);
+                
+                if (distance > 400) {
+                    currentAlertsCount++;
+                    cardsHtml += `
+                        <div class="card">
+                            <h3>⚠️ تنبيه مغادرة</h3>
+                            <p><strong>اسم الموظف:</strong> ${data.name}</p>
+                            <p><strong>وقت الحضور:</strong> ${data.time}</p>
+                            <p><strong>المسافة الحالية:</strong> <span>${Math.round(distance)} متر</span></p>
+                        </div>
+                    `;
+                }
+            }
+        });
+
+        const gridElement = document.getElementById('alertsGrid');
+        if (cardsHtml !== "") {
+            gridElement.innerHTML = cardsHtml;
+            // تشغيل التنبيه الصوتي إذا ظهرت حالات جديدة
+            if (currentAlertsCount > previousAlertsCount) {
+                const sound = document.getElementById('alertSound');
+                if (sound) sound.play().catch(e => console.log("التشغيل التلقائي يتطلب تفاعل المستخدم"));
+            }
+        } else {
+            gridElement.innerHTML = `<div class="no-alerts">✅ لا توجد أي حالات تجاوز للنطاق حالياً. جميع الموظفين في الأماكن المخصصة.</div>`;
+        }
+        previousAlertsCount = currentAlertsCount;
+    });
+</script>
+
+</body>
+</html>
