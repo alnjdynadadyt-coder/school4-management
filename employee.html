@@ -52,12 +52,16 @@
             <span class="info-label">الحالة:</span>
             <span class="info-value" id="cardStatus" style="color: #28a745;">---</span>
         </div>
+        <!-- منطقة زر تأكيد التواجد -->
+        <div id="confirmationArea" style="margin-top: 20px; display: none;">
+            <button id="presenceBtn" class="btn-reg" style="background:#007bff;" onclick="confirmPresence()">✅ تأكيد التواجد داخل المدرسة</button>
+        </div>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDoc, doc, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDoc, doc, query, where, getDocs, setDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
     const db = getFirestore(initializeApp({
         apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
@@ -80,34 +84,53 @@
     };
 
     let isLocationVerified = false;
+    let currentAttendanceDocId = null; // متغير لحفظ معرف السجل الحالي
     const SCHOOL_LAT = 31.7296172;
     const SCHOOL_LON = 44.9905462;
 
     navigator.geolocation.getCurrentPosition(pos => {
         const dist = 6371e3 * 2 * Math.atan2(Math.sqrt(Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2), Math.sqrt(1 - (Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2)));
         const msgDiv = document.getElementById('statusMsg');
-        
-        if (dist <= 100) { 
+        if (dist <= 1300) { 
             isLocationVerified = true; 
-            msgDiv.style.background = "#e2f0d9";
-            msgDiv.style.color = "#385723";
+            msgDiv.style.background = "#e2f0d9"; msgDiv.style.color = "#385723";
             msgDiv.innerText = "أهلاً بك، أنت ضمن النطاق المسموح. يمكنك التسجيل الآن."; 
             document.getElementById('regArea').style.display = "block"; 
         } else { 
-            msgDiv.style.background = "#f8f9fa";
-            msgDiv.style.color = "#721c24";
+            msgDiv.style.background = "#f8f9fa"; msgDiv.style.color = "#721c24";
             msgDiv.innerText = "عذراً، أنت خارج نطاق المدرسة (المسافة: " + Math.round(dist) + " متر)."; 
         }
     }, () => {
         const msgDiv = document.getElementById('statusMsg');
-        msgDiv.style.background = "#f8f9fa";
-        msgDiv.style.color = "#721c24";
         msgDiv.innerText = "يرجى السماح بالوصول للموقع الجغرافي (GPS)";
     }, { enableHighAccuracy: true });
 
+    // دالة تأكيد التواجد
+    window.confirmPresence = async () => {
+        if (!isLocationVerified) return alert("يجب أن تكون داخل المدرسة لتأكيد تواجدك!");
+        if (!currentAttendanceDocId) return alert("لا يوجد سجل حضور فعال حالياً!");
+        
+        const now = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false});
+        
+        await setDoc(doc(db, 'attendance', currentAttendanceDocId), { 
+            lastCheckIn: now,
+            checkInHistory: arrayUnion(now) 
+        }, { merge: true });
+        
+        alert("تم تأكيد تواجدك بنجاح في الساعة: " + now);
+        
+        // تعطيل الزر لمدة 60 دقيقة
+        const btn = document.getElementById('presenceBtn');
+        btn.disabled = true;
+        btn.innerText = "تم التأكيد، انتظر 60 دقيقة";
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.innerText = "✅ تأكيد التواجد داخل المدرسة";
+        }, 60 * 60 * 1000);
+    };
+
     window.registerAttendance = async (action) => {
         if (!isLocationVerified) return alert("الموقع غير مؤكد أو أنك خارج النطاق المسموح!");
-        
         const code = document.getElementById('empCode').value.trim();
         if (!code) return alert("يرجى إدخال كود الموظف!");
 
@@ -117,10 +140,7 @@
         const empData = empSnap.data();
         const currentDate = new Date().toISOString().split('T')[0];
         const currentDayName = new Date().toLocaleDateString('ar-EG', {weekday: 'long'});
-        const dayIndex = new Date().getDay();
         const now = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false});
-
-        let status = (now > getLimit(empData.type, dayIndex, now)) ? "متأخر" : "حاضر";
 
         const q = query(collection(db, "attendance"), where("empCode", "==", code));
         const snap = await getDocs(q);
@@ -131,90 +151,35 @@
         if (!snap.empty) {
             let docsList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             docsList.sort((a, b) => new Date(b.date) - new Date(a.date));
-            
             let openRecord = docsList.find(d => !d.exitTime || d.exitTime === "" || d.exitTime === "---");
-            if (openRecord) {
-                targetDoc = openRecord;
-                existingData = openRecord;
-            } else if (docsList.length > 0 && docsList[0].date === currentDate) {
-                targetDoc = snap.docs.find(d => d.id === docsList[0].id);
-                existingData = docsList[0];
-            }
+            if (openRecord) { targetDoc = openRecord; existingData = openRecord; }
+            else if (docsList.length > 0 && docsList[0].date === currentDate) { targetDoc = snap.docs.find(d => d.id === docsList[0].id); existingData = docsList[0]; }
         }
         
         if (action === 'attendance') {
             if (existingData && existingData.date === currentDate && existingData.time && existingData.time !== "" && existingData.time !== "---") {
-                document.getElementById('cardEmpName').innerText = empData.name;
-                document.getElementById('cardDate').innerText = `${existingData.day || ''} - ${existingData.date}`;
-                document.getElementById('cardTime').innerText = existingData.time;
-                document.getElementById('cardExit').innerText = existingData.exitTime || "---";
-                if(existingData.exitDate && existingData.exitDate !== existingData.date) {
-                    document.getElementById('exitRow').style.display = "flex";
-                    document.getElementById('cardExitDate').innerText = `${existingData.exitDay || ''} - ${existingData.exitDate}`;
-                } else {
-                    document.getElementById('exitRow').style.display = "none";
-                }
-                document.getElementById('cardStatus').innerText = existingData.status;
-                document.getElementById('cardStatus').style.color = (existingData.status === "متأخر") ? "#d9534f" : "#28a745";
-                document.getElementById('employeeCard').style.display = "block";
-                
-                alert("عذراً، لقد قمت بتسجيل الحضور مسبقاً ولا يمكنك تكراره إلا بعد تسجيل الانصراف!");
+                alert("لقد قمت بتسجيل الحضور مسبقاً.");
+                currentAttendanceDocId = existingData.id;
+                if (empData.type === "موظف") document.getElementById('confirmationArea').style.display = "block";
                 return;
             }
-
-            await addDoc(collection(db, "attendance"), { 
-                empCode: code, 
-                name: empData.name, 
-                status, 
-                time: now, 
-                exitTime: "", 
-                date: currentDate, 
-                day: currentDayName,
-                reason: "-"
+            let status = (now > getLimit(empData.type, new Date().getDay(), now)) ? "متأخر" : "حاضر";
+            const newDoc = await addDoc(collection(db, "attendance"), { 
+                empCode: code, name: empData.name, status, time: now, exitTime: "", date: currentDate, day: currentDayName
             });
-
-            document.getElementById('cardEmpName').innerText = empData.name;
-            document.getElementById('cardDate').innerText = `${currentDayName} - ${currentDate}`;
-            document.getElementById('cardTime').innerText = now;
-            document.getElementById('cardExit').innerText = "---";
-            document.getElementById('exitRow').style.display = "none";
-            document.getElementById('cardStatus').innerText = status;
-            document.getElementById('cardStatus').style.color = (status === "متأخر") ? "#d9534f" : "#28a745";
-            document.getElementById('employeeCard').style.display = "block";
-
+            currentAttendanceDocId = newDoc.id;
+            if (empData.type === "موظف") document.getElementById('confirmationArea').style.display = "block";
             alert("تم تسجيل الحضور بنجاح كـ: " + status);
-
         } else {
             if (!existingData || (existingData.exitTime && existingData.exitTime !== "" && existingData.exitTime !== "---")) {
-                alert("لم يتم العثور على سجل حضور مفتوح (يحتاج إلى انصراف) لهذا الكود!");
-                return;
+                alert("لم يتم العثور على سجل حضور مفتوح!"); return;
             }
-
-            // تحديث وقت الانصراف وتاريخه ويومه
-            await setDoc(doc(db, 'attendance', targetDoc.id), { 
-                exitTime: now, 
-                exitDate: currentDate,
-                exitDay: currentDayName
-            }, { merge: true });
-
-            document.getElementById('cardEmpName').innerText = empData.name;
-            document.getElementById('cardDate').innerText = `${existingData.day || ''} - ${existingData.date}`;
-            document.getElementById('cardTime').innerText = existingData.time || "---";
-            document.getElementById('cardExit').innerText = now;
-            
-            if (currentDate !== existingData.date) {
-                document.getElementById('exitRow').style.display = "flex";
-                document.getElementById('cardExitDate').innerText = `${currentDayName} - ${currentDate}`;
-            } else {
-                document.getElementById('exitRow').style.display = "none";
-            }
-
-            document.getElementById('cardStatus').innerText = existingData.status || "حاضر";
-            document.getElementById('employeeCard').style.display = "block";
-
-            alert("تم تسجيل الانصراف بنجاح لتاريخ الحضور: " + existingData.date);
+            await setDoc(doc(db, 'attendance', targetDoc.id), { exitTime: now, exitDate: currentDate, exitDay: currentDayName }, { merge: true });
+            document.getElementById('confirmationArea').style.display = "none";
+            alert("تم تسجيل الانصراف بنجاح");
         }
     };
 </script>
 </body>
 </html>
+ 
