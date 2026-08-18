@@ -161,7 +161,6 @@
         const dateVal = document.getElementById('reportDate').value;
         const formattedDate = getFormattedDateString(dateVal);
         
-        // تحديث ترويسة اليوم والتاريخ في الشاشة تلقائياً
         document.getElementById('reportDayDateBadge').innerText = `📅 اليوم والتاريخ: ${formattedDate}`;
         document.getElementById('printDate').innerText = formattedDate;
         
@@ -170,6 +169,8 @@
             cachedEmployees = {};
             empSnap.forEach(d => { cachedEmployees[d.id] = { id: d.id, ...d.data() }; });
 
+            // ملاحظة: إذا كنت تريد جلب سجلات لفترة مفتوحة (وليس ليوم واحد فقط)، يمكن إزالة شرط التاريخ أو توسيعه، 
+            // ولكن هنا تم جلب السجلات بناءً على التاريخ المختار أو استبدال الاستعلام حسب رغبتك في تقارير الموظف.
             const attQuery = query(collection(db, "attendance"), where("date", "==", dateVal));
             const attSnap = await getDocs(attQuery);
             cachedAttendance = {};
@@ -212,7 +213,12 @@
             if (statusType !== 'all' && status !== statusType) return false;
 
             return true;
-        }).sort((a, b) => Number(a.empCode || 0) - Number(b.empCode || 0));
+        }).sort((a, b) => {
+            // التعديل هنا: ترتيب تصاعدي حسب التاريخ أولاً، ثم حسب كود الموظف إذا تساوى التاريخان
+            let dateCompare = (a.date || "").localeCompare(b.date || "");
+            if (dateCompare !== 0) return dateCompare;
+            return Number(a.empCode || 0) - Number(b.empCode || 0);
+        });
 
         if (recordedList.length === 0) {
             document.getElementById('reportTable').innerHTML = `<tr><td colspan="7" style="color: #6c757d;">لا توجد سجلات مطابقة لهذه الفئة والحالة</td></tr>`;
@@ -310,7 +316,11 @@
         let rows = "";
         let count = 0;
         
-        let sortedAttendance = Object.values(cachedAttendance).sort((a, b) => Number(a.empCode || 0) - Number(b.empCode || 0));
+        let sortedAttendance = Object.values(cachedAttendance).sort((a, b) => {
+            let dateCompare = (a.date || "").localeCompare(b.date || "");
+            if (dateCompare !== 0) return dateCompare;
+            return Number(a.empCode || 0) - Number(b.empCode || 0);
+        });
 
         sortedAttendance.forEach(record => {
             let timeVal = record.time || "-";
