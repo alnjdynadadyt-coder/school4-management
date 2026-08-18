@@ -7,7 +7,6 @@
         body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
         .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
         
-        /* تنسيق ترويسة اليوم والتاريخ الجديدة */
         .report-day-badge { background: #e2f0d9; color: #385723; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 16px; border: 1px solid #b7e1cd; }
 
         .input-group { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; background: #fff3cd; padding: 15px; border-radius: 8px; align-items: center; }
@@ -29,14 +28,13 @@
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; word-wrap: break-word; }
         th { background-color: #ffc107; color: #333; }
         
-        /* تخصيص عرض الأعمدة */
-        th:nth-child(1), td:nth-child(1) { width: 8%; }  /* الكود */
-        th:nth-child(2), td:nth-child(2) { width: 25%; } /* الاسم */
-        th:nth-child(3), td:nth-child(3) { width: 12%; } /* التصنيف */
-        th:nth-child(4), td:nth-child(4) { width: 12%; } /* وقت الحضور */
-        th:nth-child(5), td:nth-child(5) { width: 12%; } /* وقت الانصراف */
-        th:nth-child(6), td:nth-child(6) { width: 13%; } /* الحالة */
-        th:nth-child(7), td:nth-child(7) { width: 18%; } /* السبب */
+        th:nth-child(1), td:nth-child(1) { width: 8%; }  
+        th:nth-child(2), td:nth-child(2) { width: 25%; } 
+        th:nth-child(3), td:nth-child(3) { width: 12%; } 
+        th:nth-child(4), td:nth-child(4) { width: 12%; } 
+        th:nth-child(5), td:nth-child(5) { width: 12%; } 
+        th:nth-child(6), td:nth-child(6) { width: 13%; } 
+        th:nth-child(7), td:nth-child(7) { width: 18%; } 
 
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
         .stats { display: flex; gap: 15px; margin-bottom: 15px; font-weight: bold; justify-content: space-around; background: #f8f9fa; padding: 10px; border-radius: 5px; }
@@ -56,21 +54,23 @@
     
     <div class="report-header">
         <h2>اعدادية النجدين</h2>
-        <h3 id="printReportTitle">تقرير الحضور والغياب اليومي</h3>
-        <p>اليوم والتاريخ: <span id="printDate"></span></p>
+        <h3 id="printReportTitle">تقرير الحضور والغياب</h3>
+        <p>الفترة: <span id="printDate"></span></p>
         <hr style="border: 0.5px solid #ccc;">
     </div>
 
-    <h2 style="color:#d39e00; text-align:center;">📊 تقارير الحضور والغياب اليومية</h2>
+    <h2 style="color:#d39e00; text-align:center;">📊 تقارير الحضور والغياب الشاملة</h2>
     
-    <!-- ترويسة اليوم والتاريخ الجديدة -->
     <div id="reportDayDateBadge" class="report-day-badge">
-        📅 اليوم والتاريخ: جاري التحميل...
+        📅 الفترة الزمنية: جاري التحميل...
     </div>
 
     <div class="input-group">
-        <label>التاريخ:</label>
-        <input type="date" id="reportDate" onchange="applyCurrentFilter()" style="background: white; font-weight: normal;">
+        <label>من تاريخ:</label>
+        <input type="date" id="startDate" onchange="applyCurrentFilter()" style="background: white; font-weight: normal;">
+        
+        <label>إلى تاريخ:</label>
+        <input type="date" id="endDate" onchange="applyCurrentFilter()" style="background: white; font-weight: normal;">
         
         <label>التصنيف:</label>
         <select id="categoryFilter" onchange="applyCurrentFilter()" style="background: white;">
@@ -130,7 +130,8 @@
         measurementId: "G-G89TZ8CC7Y"
     }));
 
-    document.getElementById('reportDate').valueAsDate = new Date();
+    document.getElementById('startDate').valueAsDate = new Date();
+    document.getElementById('endDate').valueAsDate = new Date();
 
     let cachedEmployees = {};
     let cachedAttendance = {};
@@ -158,25 +159,31 @@
     };
 
     async function loadAllData() {
-        const dateVal = document.getElementById('reportDate').value;
-        const formattedDate = getFormattedDateString(dateVal);
+        const startVal = document.getElementById('startDate').value;
+        const endVal = document.getElementById('endDate').value;
         
-        document.getElementById('reportDayDateBadge').innerText = `📅 اليوم والتاريخ: ${formattedDate}`;
-        document.getElementById('printDate').innerText = formattedDate;
+        const formattedStart = getFormattedDateString(startVal);
+        const formattedEnd = getFormattedDateString(endVal);
+        
+        document.getElementById('reportDayDateBadge').innerText = `📅 الفترة من: ${formattedStart} إلى: ${formattedEnd}`;
+        document.getElementById('printDate').innerText = `${formattedStart} إلى ${formattedEnd}`;
         
         try {
             const empSnap = await getDocs(collection(db, "employees"));
             cachedEmployees = {};
             empSnap.forEach(d => { cachedEmployees[d.id] = { id: d.id, ...d.data() }; });
 
-            // ملاحظة: إذا كنت تريد جلب سجلات لفترة مفتوحة (وليس ليوم واحد فقط)، يمكن إزالة شرط التاريخ أو توسيعه، 
-            // ولكن هنا تم جلب السجلات بناءً على التاريخ المختار أو استبدال الاستعلام حسب رغبتك في تقارير الموظف.
-            const attQuery = query(collection(db, "attendance"), where("date", "==", dateVal));
+            const attQuery = query(
+                collection(db, "attendance"), 
+                where("date", ">=", startVal),
+                where("date", "<=", endVal)
+            );
             const attSnap = await getDocs(attQuery);
             cachedAttendance = {};
             attSnap.forEach(d => { 
                 let data = d.data();
-                cachedAttendance[data.empCode] = data; 
+                let uniqueKey = `${data.empCode}_${data.date}`;
+                cachedAttendance[uniqueKey] = data; 
             });
         } catch (error) {
             console.error(error);
@@ -214,15 +221,14 @@
 
             return true;
         }).sort((a, b) => {
-            // التعديل هنا: ترتيب تصاعدي حسب التاريخ أولاً، ثم حسب كود الموظف إذا تساوى التاريخان
             let dateCompare = (a.date || "").localeCompare(b.date || "");
             if (dateCompare !== 0) return dateCompare;
             return Number(a.empCode || 0) - Number(b.empCode || 0);
         });
 
         if (recordedList.length === 0) {
-            document.getElementById('reportTable').innerHTML = `<tr><td colspan="7" style="color: #6c757d;">لا توجد سجلات مطابقة لهذه الفئة والحالة</td></tr>`;
-            updateStats(pCount, lCount, lvCount, calculateAbsentCount(selectedCategory));
+            document.getElementById('reportTable').innerHTML = `<tr><td colspan="7" style="color: #6c757d;">لا توجد سجلات مطابقة لهذه الفئة والحالة ضمن الفترة المحددة</td></tr>`;
+            updateStats(pCount, lCount, lvCount, 0);
             return;
         }
 
@@ -246,26 +252,15 @@
         });
 
         document.getElementById('reportTable').innerHTML = rows;
-        let absentCount = calculateAbsentCount(selectedCategory);
-        updateStats(pCount, lCount, lvCount, absentCount);
+        updateStats(pCount, lCount, lvCount, 0);
     };
-
-    function calculateAbsentCount(categoryFilter) {
-        let count = 0;
-        for (let code in cachedEmployees) {
-            let emp = cachedEmployees[code];
-            if (categoryFilter !== "الكل" && (emp.type || '-') !== categoryFilter) continue;
-            if (!cachedAttendance[code]) count++;
-        }
-        return count;
-    }
 
     window.showAbsentList = async () => {
         window.currentMode = 'absent';
         await loadAllData();
         const selectedCategory = document.getElementById('categoryFilter').value;
         
-        document.getElementById('printReportTitle').innerText = `كشف المتغيبين (لم يسجلوا الحضور - ${selectedCategory})`;
+        document.getElementById('printReportTitle').innerText = `كشف الموظفين (${selectedCategory})`;
 
         let rows = "";
         let absentCount = 0;
@@ -275,35 +270,10 @@
         sortedCodes.forEach(code => {
             let emp = cachedEmployees[code];
             if (selectedCategory !== "الكل" && (emp.type || '-') !== selectedCategory) return;
-
-            if (!cachedAttendance[code]) {
-                absentCount++;
-                rows += `<tr>
-                    <td>${emp.id}</td>
-                    <td style="font-weight:bold; text-align:right; padding-right:15px;">${emp.name}</td>
-                    <td>${emp.type || '-'}</td>
-                    <td>-</td>
-                    <td>-</td>
-                    <td style="font-weight:bold; color: red;">غائب (لم يسجل)</td>
-                    <td>لم يقم بتسجيل الحضور</td>
-                </tr>`;
-            }
         });
 
-        if (rows === "") {
-            rows = `<tr><td colspan="7" style="color: green; font-weight: bold;">رائع! الجميع في هذه الفئة قاموا بتسجيل الحضور لهذا اليوم.</td></tr>`;
-        }
-
-        document.getElementById('reportTable').innerHTML = rows;
-        
-        let pCount = 0, lCount = 0, lvCount = 0;
-        Object.values(cachedAttendance).forEach(r => {
-            let s = r.status || "حاضر";
-            if (s === "حاضر") pCount++;
-            else if (s === "متأخر") lCount++;
-            else if (s === "مجاز") lvCount++;
-        });
-        updateStats(pCount, lCount, lvCount, absentCount);
+        document.getElementById('reportTable').innerHTML = `<tr><td colspan="7" style="color: #6c757d;">قائمة الغيابات تحسب بناءً على يوم واحد، يرجى اختيار تاريخ محدد ليوم واحد لعرض الغياب بدقة.</td></tr>`;
+        updateStats(0, 0, 0, 0);
     };
 
     window.filterNoExit = async () => {
@@ -349,19 +319,11 @@
         });
 
         if (rows === "" || count === 0) {
-            rows = `<tr><td colspan="7" style="color: green; font-weight: bold;">ممتاز! لا يوجد أحد في هذه الفئة مسجل حضور وبدون انصراف.</td></tr>`;
+            rows = `<tr><td colspan="7" style="color: green; font-weight: bold;">لا يوجد أحد مسجل حضور وبدون انصراف ضمن هذه الفترة.</td></tr>`;
         }
 
         document.getElementById('reportTable').innerHTML = rows;
-        
-        let pCount = 0, lCount = 0, lvCount = 0;
-        Object.values(cachedAttendance).forEach(r => {
-            let s = r.status || "حاضر";
-            if (s === "حاضر") pCount++;
-            else if (s === "متأخر") lCount++;
-            else if (s === "مجاز") lvCount++;
-        });
-        updateStats(pCount, lCount, lvCount, calculateAbsentCount(selectedCategory));
+        updateStats(0, 0, 0, 0);
     };
 
     function updateStats(p, l, lv, a) {
@@ -372,14 +334,15 @@
     }
 
     window.exportExcel = () => {
-        const dateVal = document.getElementById('reportDate').value;
-        let fullDateStr = getFormattedDateString(dateVal);
+        const startVal = document.getElementById('startDate').value;
+        const endVal = document.getElementById('endDate').value;
+        let fullDateStr = `من ${getFormattedDateString(startVal)} إلى ${getFormattedDateString(endVal)}`;
         let html = `
             <html dir="rtl">
             <head><meta charset="UTF-8"></head>
             <body>
                 <h3>اعدادية النجدين - تقرير الحضور والغياب</h3>
-                <p>اليوم والتاريخ: ${fullDateStr}</p>
+                <p>الفترة: ${fullDateStr}</p>
                 ${document.querySelector("table").outerHTML}
             </body>
             </html>
@@ -388,7 +351,7 @@
         let url = URL.createObjectURL(blob);
         let a = document.createElement('a');
         a.href = url;
-        a.download = `attendance_report_${dateVal}.xls`;
+        a.download = `attendance_report_${startVal}_to_${endVal}.xls`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
