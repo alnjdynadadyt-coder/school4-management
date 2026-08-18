@@ -146,133 +146,64 @@
     }
 
     window.applyCurrentFilter = async () => {
-        if (Object.keys(cachedEmployees).length === 0) {
-            await loadAllData();
-        }
-        if (window.currentMode === 'all' || window.currentMode === 'status') {
-            filterByStatus(window.currentSubStatus);
-        } else if (window.currentMode === 'absent') {
-            showAbsentList();
-        } else if (window.currentMode === 'noexit') {
-            filterNoExit();
-        }
+        if (Object.keys(cachedEmployees).length === 0) await loadAllData();
+        if (window.currentMode === 'all' || window.currentMode === 'status') filterByStatus(window.currentSubStatus);
+        else if (window.currentMode === 'absent') showAbsentList();
+        else if (window.currentMode === 'noexit') filterNoExit();
     };
 
     async function loadAllData() {
         const startVal = document.getElementById('startDate').value;
         const endVal = document.getElementById('endDate').value;
-        
-        const formattedStart = getFormattedDateString(startVal);
-        const formattedEnd = getFormattedDateString(endVal);
-        
-        document.getElementById('reportDayDateBadge').innerText = `📅 الفترة من: ${formattedStart} إلى: ${formattedEnd}`;
-        document.getElementById('printDate').innerText = `${formattedStart} إلى ${formattedEnd}`;
+        document.getElementById('reportDayDateBadge').innerText = `📅 الفترة من: ${getFormattedDateString(startVal)} إلى: ${getFormattedDateString(endVal)}`;
+        document.getElementById('printDate').innerText = `${getFormattedDateString(startVal)} إلى ${getFormattedDateString(endVal)}`;
         
         try {
             const empSnap = await getDocs(collection(db, "employees"));
             cachedEmployees = {};
             empSnap.forEach(d => { cachedEmployees[d.id] = { id: d.id, ...d.data() }; });
 
-            const attQuery = query(
-                collection(db, "attendance"), 
-                where("date", ">=", startVal),
-                where("date", "<=", endVal)
-            );
+            const attQuery = query(collection(db, "attendance"), where("date", ">=", startVal), where("date", "<=", endVal));
             const attSnap = await getDocs(attQuery);
             cachedAttendance = {};
-            attSnap.forEach(d => { 
-                let data = d.data();
-                let uniqueKey = `${data.empCode}_${data.date}`;
-                cachedAttendance[uniqueKey] = data; 
-            });
-        } catch (error) {
-            console.error(error);
-        }
+            attSnap.forEach(d => { let data = d.data(); cachedAttendance[d.id] = data; });
+        } catch (error) { console.error(error); }
     }
 
     window.filterByStatus = async (statusType) => {
         window.currentMode = 'status';
         window.currentSubStatus = statusType;
         await loadAllData();
-
         const selectedCategory = document.getElementById('categoryFilter').value;
-        let titleSuffix = statusType === 'all' ? 'جميع المسجلين' : `قائمة (${statusType})`;
-        document.getElementById('printReportTitle').innerText = `تقرير الحضور والغياب (${titleSuffix} - ${selectedCategory})`;
-
-        let rows = "";
         let pCount = 0, lCount = 0, lvCount = 0;
 
-        let recordedList = Object.values(cachedAttendance);
-
-        Object.values(cachedAttendance).forEach(r => {
-            let s = r.status || "حاضر";
-            if (s === "حاضر") pCount++;
-            else if (s === "متأخر") lCount++;
-            else if (s === "مجاز") lvCount++;
-        });
-
-        recordedList = recordedList.filter(record => {
+        let filteredList = Object.values(cachedAttendance).filter(record => {
             let empInfo = cachedEmployees[record.empCode] || {};
             let empType = record.type || empInfo.type || '-';
             if (selectedCategory !== "الكل" && empType !== selectedCategory) return false;
-
-            let status = record.status || "حاضر";
-            if (statusType !== 'all' && status !== statusType) return false;
-
+            if (statusType !== 'all' && (record.status || "حاضر") !== statusType) return false;
             return true;
         }).sort((a, b) => {
             let dateCompare = (a.date || "").localeCompare(b.date || "");
-            if (dateCompare !== 0) return dateCompare;
-            return Number(a.empCode || 0) - Number(b.empCode || 0);
+            return dateCompare !== 0 ? dateCompare : Number(a.empCode || 0) - Number(b.empCode || 0);
         });
 
-        if (recordedList.length === 0) {
-            document.getElementById('reportTable').innerHTML = `<tr><td colspan="7" style="color: #6c757d;">لا توجد سجلات مطابقة لهذه الفئة والحالة ضمن الفترة المحددة</td></tr>`;
-            updateStats(pCount, lCount, lvCount, 0);
-            return;
-        }
-
-        recordedList.forEach(record => {
+        let rows = "";
+        filteredList.forEach(record => {
             let status = record.status || "حاضر";
-            let color = status === 'حاضر' ? 'green' : (status === 'متأخر' ? 'orange' : (status === 'مجاز' ? 'blue' : 'red'));
-            
+            if (status === "حاضر") pCount++; else if (status === "متأخر") lCount++; else if (status === "مجاز") lvCount++;
             let empInfo = cachedEmployees[record.empCode] || {};
-            let empType = record.type || empInfo.type || '-';
-            let empName = record.name || empInfo.name || 'مستخدم';
-
-            rows += `<tr>
-                <td>${record.empCode || '-'}</td>
-                <td style="font-weight:bold; text-align:right; padding-right:15px;">${empName}</td>
-                <td>${empType}</td>
-                <td>${record.time || '-'}</td>
-                <td>${record.exitTime || '-'}</td>
-                <td style="font-weight:bold; color: ${color};">${status}</td>
-                <td>${record.reason || '-'}</td>
-            </tr>`;
+            rows += `<tr><td>${record.empCode}</td><td style="font-weight:bold;">${record.name || empInfo.name || '-'}</td><td>${record.type || empInfo.type || '-'}</td><td>${record.time || '-'}</td><td>${record.exitTime || '-'}</td><td style="color:${status==='حاضر'?'green':'orange'};">${status}</td><td>${record.reason || '-'}</td></tr>`;
         });
 
-        document.getElementById('reportTable').innerHTML = rows;
+        document.getElementById('reportTable').innerHTML = rows || `<tr><td colspan="7">لا توجد بيانات</td></tr>`;
         updateStats(pCount, lCount, lvCount, 0);
     };
 
     window.showAbsentList = async () => {
         window.currentMode = 'absent';
         await loadAllData();
-        const selectedCategory = document.getElementById('categoryFilter').value;
-        
-        document.getElementById('printReportTitle').innerText = `كشف الموظفين (${selectedCategory})`;
-
-        let rows = "";
-        let absentCount = 0;
-
-        let sortedCodes = Object.keys(cachedEmployees).sort((a, b) => Number(a) - Number(b));
-
-        sortedCodes.forEach(code => {
-            let emp = cachedEmployees[code];
-            if (selectedCategory !== "الكل" && (emp.type || '-') !== selectedCategory) return;
-        });
-
-        document.getElementById('reportTable').innerHTML = `<tr><td colspan="7" style="color: #6c757d;">قائمة الغيابات تحسب بناءً على يوم واحد، يرجى اختيار تاريخ محدد ليوم واحد لعرض الغياب بدقة.</td></tr>`;
+        document.getElementById('reportTable').innerHTML = `<tr><td colspan="7">يرجى اختيار تاريخ محدد ليوم واحد لعرض الغياب.</td></tr>`;
         updateStats(0, 0, 0, 0);
     };
 
@@ -280,50 +211,20 @@
         window.currentMode = 'noexit';
         await loadAllData();
         const selectedCategory = document.getElementById('categoryFilter').value;
-        
-        document.getElementById('printReportTitle').innerText = `موظفون لم يسجلوا انصرافهم (${selectedCategory})`;
+        let filteredList = Object.values(cachedAttendance).filter(r => r.time !== "-" && r.exitTime === "-" && r.status !== "غائب").filter(r => {
+            let empType = r.type || (cachedEmployees[r.empCode] || {}).type || '-';
+            return selectedCategory === "الكل" || empType === selectedCategory;
+        }).sort((a, b) => {
+            let dateCompare = (a.date || "").localeCompare(b.date || "");
+            return dateCompare !== 0 ? dateCompare : Number(a.empCode || 0) - Number(b.empCode || 0);
+        });
 
         let rows = "";
-        let count = 0;
-        
-        let sortedAttendance = Object.values(cachedAttendance).sort((a, b) => {
-            let dateCompare = (a.date || "").localeCompare(b.date || "");
-            if (dateCompare !== 0) return dateCompare;
-            return Number(a.empCode || 0) - Number(b.empCode || 0);
+        filteredList.forEach(r => {
+            rows += `<tr><td>${r.empCode}</td><td>${r.name || '-'}</td><td>${r.type || '-'}</td><td>${r.time}</td><td>-</td><td style="color:red;">بدون انصراف</td><td>${r.reason || '-'}</td></tr>`;
         });
-
-        sortedAttendance.forEach(record => {
-            let timeVal = record.time || "-";
-            let exitTime = record.exitTime || "-";
-            let status = record.status || "حاضر";
-
-            if (timeVal !== "-" && exitTime === "-" && status !== "غائب") {
-                let empInfo = cachedEmployees[record.empCode] || {};
-                let empType = record.type || empInfo.type || '-';
-                
-                if (selectedCategory !== "الكل" && empType !== selectedCategory) return;
-
-                count++;
-                let empName = record.name || empInfo.name || 'مستخدم';
-
-                rows += `<tr>
-                    <td>${record.empCode}</td>
-                    <td style="font-weight:bold; text-align:right; padding-right:15px;">${empName}</td>
-                    <td>${empType}</td>
-                    <td>${timeVal}</td>
-                    <td>-</td>
-                    <td style="font-weight:bold; color: orange;">${status} (بدون انصراف)</td>
-                    <td>${record.reason || '-'}</td>
-                </tr>`;
-            }
-        });
-
-        if (rows === "" || count === 0) {
-            rows = `<tr><td colspan="7" style="color: green; font-weight: bold;">لا يوجد أحد مسجل حضور وبدون انصراف ضمن هذه الفترة.</td></tr>`;
-        }
-
-        document.getElementById('reportTable').innerHTML = rows;
-        updateStats(0, 0, 0, 0);
+        document.getElementById('reportTable').innerHTML = rows || `<tr><td colspan="7">لا يوجد أحد بدون انصراف.</td></tr>`;
+        updateStats(0,0,0,0);
     };
 
     function updateStats(p, l, lv, a) {
@@ -334,27 +235,14 @@
     }
 
     window.exportExcel = () => {
-        const startVal = document.getElementById('startDate').value;
-        const endVal = document.getElementById('endDate').value;
-        let fullDateStr = `من ${getFormattedDateString(startVal)} إلى ${getFormattedDateString(endVal)}`;
-        let html = `
-            <html dir="rtl">
-            <head><meta charset="UTF-8"></head>
-            <body>
-                <h3>اعدادية النجدين - تقرير الحضور والغياب</h3>
-                <p>الفترة: ${fullDateStr}</p>
-                ${document.querySelector("table").outerHTML}
-            </body>
-            </html>
-        `;
-        let blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-        let url = URL.createObjectURL(blob);
+        let startVal = document.getElementById('startDate').value;
+        let endVal = document.getElementById('endDate').value;
+        let html = `<html><body>${document.querySelector("table").outerHTML}</body></html>`;
+        let blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' });
         let a = document.createElement('a');
-        a.href = url;
-        a.download = `attendance_report_${startVal}_to_${endVal}.xls`;
-        document.body.appendChild(a);
+        a.href = URL.createObjectURL(blob);
+        a.download = `report_${startVal}_to_${endVal}.xls`;
         a.click();
-        document.body.removeChild(a);
     };
 
     filterByStatus('all');
