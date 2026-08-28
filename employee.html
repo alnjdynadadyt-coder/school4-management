@@ -87,7 +87,7 @@
         const dist = 6371e3 * 2 * Math.atan2(Math.sqrt(Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2), Math.sqrt(1 - (Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2)));
         const msgDiv = document.getElementById('statusMsg');
         
-        if (dist <= 3000) { 
+        if (dist <= 3500) { 
             isLocationVerified = true; 
             msgDiv.style.background = "#e2f0d9";
             msgDiv.style.color = "#385723";
