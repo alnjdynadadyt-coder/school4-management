@@ -82,10 +82,10 @@
         measurementId: "G-G89TZ8CC7Y"
     }));
 
-    // عرض اليوم والتاريخ في الأعلى
+    // عرض اليوم والتاريخ في الأعلى بتوقيت بغداد المحلي
     const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
-    const dayName = now.toLocaleDateString('ar-EG', {weekday: 'long'});
+    const dateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
+    const dayName = now.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' });
     document.getElementById('currentDayDate').innerText = `📅 اليوم: ${dayName} | التاريخ: ${dateStr}`;
 
     const getLimit = (type, dayIndex, timeInput) => {
@@ -99,7 +99,7 @@
     };
 
     window.quickAction = async (code, name, type, action) => {
-        const timeInput = now.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false});
+        const timeInput = now.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad'});
         const dayIndex = now.getDay();
         
         let q;
