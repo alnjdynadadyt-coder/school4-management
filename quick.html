@@ -118,6 +118,17 @@
             alert("تم تسجيل حضور: " + name);
         } else if (action === 'exit') {
             if (snap.empty) { alert("لم يتم تسجيل الحضور بعد!"); return; }
+            
+            // 🛑 شرط منع الانصراف قبل الساعة 11:00 صباحاً لمدرس، إداري، موظف
+            if (["مدرس", "إداري", "موظف"].includes(type)) {
+                const [h, m] = timeInput.split(':').map(Number);
+                const timeVal = h * 60 + m;
+                if (timeVal < 11 * 60) {
+                    alert("عذراً، لا يمكن تسجيل الانصراف قبل الساعة 11:00 صباحاً لهذه الفئة!");
+                    return;
+                }
+            }
+
             await setDoc(doc(db, 'attendance', snap.docs[0].id), { exitTime: timeInput }, { merge: true });
             alert("تم تسجيل انصراف: " + name);
         } else if (action === 'excused' || action === 'absent') {
