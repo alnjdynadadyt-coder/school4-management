@@ -64,8 +64,12 @@
         measurementId: "G-G89TZ8CC7Y"
     }));
 
-    document.getElementById('dateSelector').valueAsDate = new Date();
-    document.getElementById('customTime').value = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false});
+    const nowObj = new Date();
+    const baghdadDate = nowObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
+    const baghdadTime = nowObj.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad' });
+
+    document.getElementById('dateSelector').value = baghdadDate;
+    document.getElementById('customTime').value = baghdadTime;
 
     let editingId = null;
 
@@ -158,6 +162,9 @@
             const q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", date));
             if (!(await getDocs(q)).empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
             
+            const targetDateObj = new Date(date);
+            const formattedDayName = targetDateObj.toLocaleDateString('ar-EG', {weekday: 'long', timeZone: 'Asia/Baghdad'});
+
             await addDoc(collection(db, "attendance"), { 
                 empCode: code, 
                 name: empData.name, 
@@ -165,7 +172,7 @@
                 time: (status === "غائب" || status === "مجاز") ? "-" : timeInput, 
                 exitTime: "", 
                 date, 
-                day: new Date(date).toLocaleDateString('ar-EG', {weekday: 'long'}), 
+                day: formattedDayName, 
                 reason: reason 
             });
             
