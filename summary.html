@@ -120,7 +120,10 @@
                 }
             });
 
+            // تحويل البيانات إلى مصفوفة وترتيبها تصاعدياً حسب الكود
             globalData = Object.values(summaryMap);
+            globalData.sort((a, b) => Number(a.code) - Number(b.code));
+
             renderTable(globalData);
 
         } catch (error) {
@@ -170,3 +173,4 @@
 </script>
 </body>
 </html>
+ 
