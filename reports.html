@@ -130,7 +130,9 @@
         measurementId: "G-G89TZ8CC7Y"
     }));
 
-    document.getElementById('reportDate').valueAsDate = new Date();
+    // ضبط التاريخ الافتراضي بدقة ليطابق توقيت بغداد المحلي
+    const baghdadDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
+    document.getElementById('reportDate').value = baghdadDateStr;
 
     let cachedEmployees = {};
     let cachedAttendance = {};
@@ -140,7 +142,7 @@
     function getFormattedDateString(dateVal) {
         if (!dateVal) return "";
         let d = new Date(dateVal);
-        let options = { weekday: 'long', year: 'numeric', month: 'numeric', day: 'numeric' };
+        let options = { weekday: 'long', year: 'numeric', month: 'numeric', day: 'numeric', timeZone: 'Asia/Baghdad' };
         return d.toLocaleDateString('ar-IQ', options);
     }
 
