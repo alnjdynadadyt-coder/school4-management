@@ -115,10 +115,11 @@
         if (!empSnap.exists()) return alert("كود الموظف غير صحيح!");
         
         const empData = empSnap.data();
-        const currentDate = new Date().toISOString().split('T')[0];
-        const currentDayName = new Date().toLocaleDateString('ar-EG', {weekday: 'long'});
-        const dayIndex = new Date().getDay();
-        const now = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false});
+        const nowObj = new Date();
+        const currentDate = nowObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
+        const currentDayName = nowObj.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' });
+        const dayIndex = nowObj.getDay();
+        const now = nowObj.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad' });
 
         let status = (now > getLimit(empData.type, dayIndex, now)) ? "متأخر" : "حاضر";
 
@@ -190,6 +191,16 @@
                 return;
             }
 
+            // 🛑 شرط منع الانصراف قبل الساعة 11:00 صباحاً لفئات (مدرس، إداري، موظف)
+            if (["مدرس", "إداري", "موظف"].includes(empData.type)) {
+                const [h, m] = now.split(':').map(Number);
+                const timeVal = h * 60 + m;
+                if (timeVal < 11 * 60) {
+                    alert("عذراً، لا يمكن تسجيل الانصراف قبل الساعة 11:00 صباحاً لهذه الفئة!");
+                    return;
+                }
+            }
+
             // تحديث وقت الانصراف وتاريخه ويومه
             await setDoc(doc(db, 'attendance', targetDoc.id), { 
                 exitTime: now, 
@@ -218,3 +229,4 @@
 </script>
 </body>
 </html>
+ 
