@@ -2,77 +2,86 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>التسجيل السريع - اعدادية النجدين</title>
+    <title>لوحة التسجيل السريع للأسماء - اعدادية النجدين</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .search-box { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
-        
-        /* ترويسة اليوم والتاريخ */
-        .date-badge { background: #e2f0d9; color: #385723; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 16px; border: 1px solid #b7e1cd; }
-
-        /* تنسيق أزرار التصنيفات */
-        .filter-buttons { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-        .btn-filter { background: #6c757d; color: white; padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; }
-        .btn-filter.active { background: #28a745; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-
+        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .header-badge { background: #e2f0d9; color: #385723; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 16px; border: 1px solid #b7e1cd; }
+        .filter-buttons { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center; }
+        .filter-buttons button { padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; color: white; font-weight: bold; font-size: 14px; }
+        .search-box { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; box-sizing: border-box; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background-color: #28a745; color: white; }
-        
-        /* تنسيق الأزرار بالترتيب المطلوب: حضور، انصراف، مجاز، غائب */
-        .btn-quick { background: #28a745; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
-        .btn-exit { background: #6f42c1; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
-        .btn-excused { background: #17a2b8; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
-        .btn-absent { background: #dc3545; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
-
+        .btn-action { padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; font-size: 12px; margin: 2px; }
+        .action-present { background: #28a745; }
+        .action-exit { background: #6f42c1; }
+        .action-leave { background: #17a2b8; }
+        .action-absent { background: #dc3545; }
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
+        
+        /* تنسيق النافذة المنبثقة لاختيار طريقة الإجازة */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 20px; border-radius: 10px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .modal-content h3 { margin-top: 0; color: #333; }
+        .modal-btn { display: block; width: 100%; padding: 10px; margin: 10px 0; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px; color: white; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- زر العودة سيختفي تلقائياً إذا فُتحت الصفحة كرابط خارجي مستقل -->
-    <a href="index.html" id="backDashboardBtn" class="back-link">← العودة لوحة التحكم الرئيسية</a>
-    
+    <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
     <h2 style="color:#28a745; text-align:center;">⚡ لوحة التسجيل السريع للأسماء</h2>
     
-    <!-- عرض اليوم والتاريخ الحالي -->
-    <div id="currentDayDate" class="date-badge">جاري تحميل التاريخ...</div>
-
-    <!-- أزرار تصفية الفئات السريعة -->
-    <div class="filter-buttons">
-        <button class="btn-filter active" onclick="filterByCategory('الكل', this)">الكل</button>
-        <button class="btn-filter" onclick="filterByCategory('مدرس', this)">مدرس</button>
-        <button class="btn-filter" onclick="filterByCategory('إداري', this)">إداري</button>
-        <button class="btn-filter" onclick="filterByCategory('موظف', this)">موظف</button>
-        <button class="btn-filter" onclick="filterByCategory('حارس', this)">حارس</button>
+    <div id="currentDateBadge" class="header-badge">
+        📅 اليوم والتاريخ: جاري التحميل...
     </div>
 
-    <!-- حقل البحث الفوري لتصفية الأسماء -->
-    <input type="text" id="searchEmp" class="search-box" placeholder="🔍 ابحث عن اسم الموظف لتسجيله بسرعة..." onkeyup="filterTable()">
+    <div class="filter-buttons">
+        <button style="background:#28a745;" onclick="filterCategory('الكل')">الكل</button>
+        <button style="background:#343a40;" onclick="filterCategory('مدرس')">مدرس</button>
+        <button style="background:#6c757d;" onclick="filterCategory('إداري')">إداري</button>
+        <button style="background:#17a2b8;" onclick="filterCategory('موظف')">موظف</button>
+        <button style="background:#ffc107; color:#333;" onclick="filterCategory('حارس')">حارس</button>
+    </div>
 
-    <table id="quickTable">
+    <input type="text" id="searchInput" class="search-box" placeholder="🔍 ابحث عن اسم الموظف لتسجيله بسرعة..." onkeyup="searchEmployees()">
+
+    <table>
         <thead>
-            <tr><th>الاسم</th><th>التصنيف</th><th>إجراءات الحضور والانصراف</th></tr>
+            <tr>
+                <th>الاسم</th>
+                <th>التصنيف</th>
+                <th>إجراءات الحضور والانصراف</th>
+            </tr>
         </thead>
-        <tbody id="quickAttendanceTable"></tbody>
+        <tbody id="quickTable">
+            <tr><td colspan="3" style="color: #6c757d;">جاري تحميل الأسماء...</td></tr>
+        </tbody>
     </table>
 </div>
 
+<!-- نافذة اختيار طريقة إدخال الإجازة -->
+<div id="leaveModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>خيارات تسجيل الإجازة</h3>
+        <p id="modalEmpName" style="font-weight: bold; color: #17a2b8;"></p>
+        <button class="modal-btn" style="background: #28a745;" onclick="processLeaveChoice('storage')">1. رفع صورة حقيقية (سحابي)</button>
+        <button class="modal-btn" style="background: #ffc107; color: #333;" onclick="processLeaveChoice('base64')">2. ضغط وتحويل الصورة مباشرة</button>
+        <button class="modal-btn" style="background: #6c757d;" onclick="processLeaveChoice('none')">3. بدون رفع صورة (كتابة السبب فقط)</button>
+        <button class="modal-btn" style="background: #dc3545;" onclick="closeLeaveModal()">إلغاء</button>
+    </div>
+</div>
+
+<!-- عنصر مخفي لفتح الكاميرا أو ألبوم الصور -->
+<input type="file" id="leaveImageInput" accept="image/*" style="display: none;" onchange="handleImageSelected(this)">
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, where } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
-    // التحقق التلقائي من نوع الفتح: إذا فُتحت الصفحة كصفحة مستقلة (رابط خارجي)، يختفي زر العودة للوحة التحكم
-    if (window.self === window.top && !document.referrer.includes(window.location.hostname)) {
-        const backBtn = document.getElementById('backDashboardBtn');
-        if (backBtn) {
-            backBtn.style.display = 'none';
-        }
-    }
-
-    const db = getFirestore(initializeApp({
+    const firebaseConfig = {
         apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
         authDomain: "school4-management.firebaseapp.com",
         projectId: "school4-management",
@@ -80,114 +89,203 @@
         messagingSenderId: "157481747196",
         appId: "1:157481747196:web:ee4958d9589b8d01464d79",
         measurementId: "G-G89TZ8CC7Y"
-    }));
-
-    // عرض اليوم والتاريخ في الأعلى بتوقيت بغداد المحلي
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
-    const dayName = now.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' });
-    document.getElementById('currentDayDate').innerText = `📅 اليوم: ${dayName} | التاريخ: ${dateStr}`;
-
-    const getLimit = (type, dayIndex, timeInput) => {
-        const [h, m] = timeInput.split(':').map(Number);
-        const timeVal = h * 60 + m;
-        if (type === "حارس") return (timeVal < 12 * 60) ? "07:10" : "17:10";
-        if (type === "موظف") return (timeVal < 11 * 60) ? "07:10" : "12:10";
-        if (type === "إداري") return "07:40";
-        if (type === "مدرس") return "08:10";
-        return "08:10";
     };
 
-    window.quickAction = async (code, name, type, action) => {
-        const timeInput = now.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad'});
-        const dayIndex = now.getDay();
-        
-        let q;
-        if (action === 'exit' && type === "حارس") {
-            q = query(collection(db, "attendance"), where("empCode", "==", code), where("exitTime", "==", ""));
-        } else {
-            q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", dateStr));
-        }
-        
-        const snap = await getDocs(q);
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
 
-        if (action === 'attendance') {
-            if (!snap.empty) { alert("الموظف مسجل بالفعل!"); return; }
-            let status = (timeInput > getLimit(type, dayIndex, timeInput)) ? "متأخر" : "حاضر";
-            await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: timeInput, exitTime: "", date: dateStr, day: dayName, reason: "" });
-            alert("تم تسجيل حضور: " + name);
-        } else if (action === 'exit') {
-            if (snap.empty) { alert("لم يتم تسجيل الحضور بعد!"); return; }
-            
-            // 🛑 شرط منع الانصراف قبل الساعة 11:00 صباحاً لمدرس، إداري، موظف
-            if (["مدرس", "إداري", "موظف"].includes(type)) {
-                const [h, m] = timeInput.split(':').map(Number);
-                const timeVal = h * 60 + m;
-                if (timeVal < 11 * 60) {
-                    alert("عذراً، لا يمكن تسجيل الانصراف قبل الساعة 11:00 صباحاً لهذه الفئة!");
-                    return;
-                }
-            }
-
-            await setDoc(doc(db, 'attendance', snap.docs[0].id), { exitTime: timeInput }, { merge: true });
-            alert("تم تسجيل انصراف: " + name);
-        } else if (action === 'excused' || action === 'absent') {
-            if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
-            let status = (action === 'excused') ? "مجاز" : "غائب";
-            await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: "-", exitTime: "-", date: dateStr, day: dayName, reason: "" });
-            alert("تم تسجيل حالة " + status + ": " + name);
-        }
-    };
+    const baghdadDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
+    
+    function getFormattedDateString() {
+        let d = new Date();
+        return d.toLocaleDateString('ar-IQ', { weekday: 'long', year: 'numeric', month: 'numeric', day: 'numeric', timeZone: 'Asia/Baghdad' });
+    }
+    document.getElementById('currentDateBadge').innerText = `📅 اليوم والتاريخ: ${getFormattedDateString()}`;
 
     let allEmployees = [];
     let currentCategory = 'الكل';
+    let activeEmpForLeave = null;
+    let selectedLeaveMethod = null;
 
-    async function loadEmployees() {
-        const snap = await getDocs(collection(db, "employees"));
-        allEmployees = [];
-        snap.forEach(d => {
-            allEmployees.push({ id: d.id, ...d.data() });
-        });
-        filterTable();
+    async function loadData() {
+        try {
+            const querySnapshot = await getDocs(collection(db, "employees"));
+            allEmployees = [];
+            querySnapshot.forEach((docSnap) => {
+                allEmployees.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            allEmployees.sort((a, b) => Number(a.id) - Number(b.id));
+            renderTable(allEmployees);
+        } catch (error) {
+            console.error(error);
+            document.getElementById('quickTable').innerHTML = `<tr><td colspan="3" style="color:red;">خطأ في تحميل البيانات</td></tr>`;
+        }
     }
 
-    window.filterByCategory = (category, btnElement) => {
-        currentCategory = category;
-        document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
-        btnElement.classList.add('active');
-        filterTable();
+    function renderTable(list) {
+        let rows = "";
+        if (list.length === 0) {
+            rows = `<tr><td colspan="3" style="color:#6c757d;">لا توجد أسماء مطابقة</td></tr>`;
+        } else {
+            list.forEach(emp => {
+                rows += `<tr>
+                    <td style="font-weight:bold; text-align:right; padding-right:15px;">${emp.name}</td>
+                    <td>${emp.type || '-'}</td>
+                    <td>
+                        <button class="btn-action action-present" onclick="registerStatus('${emp.id}', '${emp.name}', '${emp.type || '-'}', 'حاضر')">حضور</button>
+                        <button class="btn-action action-exit" onclick="registerExit('${emp.id}')">انصراف</button>
+                        <button class="btn-action action-leave" onclick="openLeaveModal('${emp.id}', '${emp.name}', '${emp.type || '-'}')">مجاز</button>
+                        <button class="btn-action action-absent" onclick="registerStatus('${emp.id}', '${emp.name}', '${emp.type || '-'}', 'غائب')">غائب</button>
+                    </td>
+                </tr>`;
+            });
+        }
+        document.getElementById('quickTable').innerHTML = rows;
+    }
+
+    window.filterCategory = (cat) => {
+        currentCategory = cat;
+        let filtered = cat === 'الكل' ? allEmployees : allEmployees.filter(e => e.type === cat);
+        renderTable(filtered);
     };
 
-    window.filterTable = () => {
-        const searchVal = document.getElementById('searchEmp').value.toLowerCase();
+    window.searchEmployees = () => {
+        let keyword = document.getElementById('searchInput').value.toLowerCase();
+        let filtered = allEmployees.filter(e => {
+            let matchesCat = currentCategory === 'الكل' || e.type === currentCategory;
+            let matchesName = e.name.toLowerCase().includes(keyword);
+            return matchesCat && matchesName;
+        });
+        renderTable(filtered);
+    };
+
+    // وظيفة تسجيل الحضور / الغياب العادي
+    window.registerStatus = async (empCode, empName, empType, status) => {
+        let timeNow = new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit' });
+        let docId = `${baghdadDateStr}_${empCode}`;
         
-        const filtered = allEmployees.filter(e => {
-            const matchesCategory = (currentCategory === 'الكل' || e.type === currentCategory);
-            const matchesSearch = e.name.toLowerCase().includes(searchVal);
-            return matchesCategory && matchesSearch;
-        });
+        try {
+            let docRef = doc(db, "attendance", docId);
+            let docSnap = await getDoc(docRef);
+            let existingExit = docSnap.exists() ? (docSnap.data().exitTime || "-") : "-";
 
-        renderList(filtered);
+            await setDoc(docRef, {
+                empCode: empCode,
+                name: empName,
+                type: empType,
+                date: baghdadDateStr,
+                time: status === 'غائب' ? '-' : timeNow,
+                exitTime: existingExit,
+                status: status,
+                reason: status === 'غائب' ? 'غائب' : '-',
+                leaveImage: ''
+            }, { merge: true });
+            
+            alert(`تم تسجيل (${status}) للموظف: ${empName} بنجاح!`);
+        } catch (error) {
+            alert("حدث خطأ أثناء الحفظ");
+        }
     };
 
-    function renderList(list) {
-        let qRows = "";
-        list.forEach(data => {
-            qRows += `<tr>
-                <td style="font-weight:bold; font-size:16px;">${data.name}</td>
-                <td>${data.type}</td>
-                <td>
-                    <button class="btn-quick" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'attendance')">حضور</button>
-                    <button class="btn-exit" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'exit')">انصراف</button>
-                    <button class="btn-excused" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'excused')">مجاز</button>
-                    <button class="btn-absent" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'absent')">غائب</button>
-                </td>
-            </tr>`;
-        });
-        document.getElementById('quickAttendanceTable').innerHTML = qRows || `<tr><td colspan="3" style="color: #6c757d;">لا توجد نتائج مطابقة</td></tr>`;
+    // تسجيل وقت الانصراف
+    window.registerExit = async (empCode) => {
+        let timeNow = new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit' });
+        let docId = `${baghdadDateStr}_${empCode}`;
+        try {
+            let docRef = doc(db, "attendance", docId);
+            let docSnap = await getDoc(docRef);
+            if (!docSnap.exists()) {
+                alert("لم يتم تسجيل حضور هذا الموظف اليوم ليتم تسجيل انصرافه!");
+                return;
+            }
+            await setDoc(docRef, { exitTime: timeNow }, { merge: true });
+            alert(`تم تسجيل وقت الانصراف بنجاح (${timeNow})`);
+        } catch (error) {
+            alert("حدث خطأ أثناء تسجيل الانصراف");
+        }
+    };
+
+    // إدارة نافذة الإجازة
+    window.openLeaveModal = (id, name, type) => {
+        activeEmpForLeave = { id, name, type };
+        document.getElementById('modalEmpName').innerText = `الموظف: ${name}`;
+        document.getElementById('leaveModal').style.display = 'flex';
+    };
+
+    window.closeLeaveModal = () => {
+        document.getElementById('leaveModal').style.display = 'none';
+        activeEmpForLeave = null;
+    };
+
+    window.processLeaveChoice = (method) => {
+        selectedLeaveMethod = method;
+        closeLeaveModal();
+
+        if (method === 'none') {
+            saveLeaveToFirebase('');
+        } else {
+            // فتح مستعرض الملفات/الكاميرا لاختيار الصورة
+            document.getElementById('leaveImageInput').click();
+        }
+    };
+
+    // التعامل مع الصورة المختارة من جهاز الـ iPad
+    window.handleImageSelected = async (inputElement) => {
+        if (!inputElement.files || inputElement.files.length === 0) return;
+        let file = inputElement.files[0];
+        let imageUrl = '';
+
+        let loadingAlert = alert("جاري معالجة ورفع الصورة، لطفا الانتظار...");
+
+        try {
+            if (selectedLeaveMethod === 'storage') {
+                // الطريقة الأولى: الرفع لـ Firebase Storage
+                let storageRef = ref(storage, `leaves/${baghdadDateStr}_${activeEmpForLeave.id}_${file.name}`);
+                let snapshot = await uploadBytes(storageRef, file);
+                imageUrl = await getDownloadURL(snapshot.ref);
+            } else if (selectedLeaveMethod === 'base64') {
+                // الطريقة الثانية: تحويل لـ Base64
+                imageUrl = await new Promise((resolve) => {
+                    let reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            await saveLeaveToFirebase(imageUrl);
+        } catch (error) {
+            console.error(error);
+            alert("حدث خطأ أثناء رفع الصورة، تأكد من الاتصال أو حجم الملف.");
+        }
+        inputElement.value = ''; // تصفيف الحقل
+    };
+
+    async function saveLeaveToFirebase(imageUrl) {
+        if (!activeEmpForLeave) return;
+        let docId = `${baghdadDateStr}_${activeEmpForLeave.id}`;
+        let reasonText = prompt("أدخل سبب الإجازة أو ملاحظات إضافية (اختياري):") || "إجازة رسمية";
+
+        try {
+            await setDoc(doc(db, "attendance", docId), {
+                empCode: activeEmpForLeave.id,
+                name: activeEmpForLeave.name,
+                type: activeEmpForLeave.type,
+                date: baghdadDateStr,
+                time: '-',
+                exitTime: '-',
+                status: 'مجاز',
+                reason: reasonText,
+                leaveImage: imageUrl
+            }, { merge: true });
+
+            alert(`تم تسجيل إجازة الموظف (${activeEmpForLeave.name}) بنجاح!`);
+        } catch (error) {
+            alert("خطأ في حفظ بيانات الإجازة في قاعدة البيانات.");
+        }
     }
 
-    loadEmployees();
+    loadData();
 </script>
 </body>
 </html>
