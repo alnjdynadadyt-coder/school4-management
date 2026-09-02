@@ -27,6 +27,12 @@
         .btn-absent { background: #dc3545; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
 
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
+
+        /* تنسيق النافذة المنبثقة لاختيار طريقة الإجازة */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 20px; border-radius: 10px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .modal-content h3 { margin-top: 0; color: #333; }
+        .modal-btn { display: block; width: 100%; padding: 10px; margin: 10px 0; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px; color: white; }
     </style>
 </head>
 <body>
@@ -60,9 +66,25 @@
     </table>
 </div>
 
+<!-- نافذة اختيار طريقة إدخال الإجازة -->
+<div id="leaveModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>خيارات تسجيل الإجازة</h3>
+        <p id="modalEmpName" style="font-weight: bold; color: #17a2b8;"></p>
+        <button class="modal-btn" style="background: #28a745;" onclick="processLeaveChoice('storage')">1. رفع صورة حقيقية (سحابي)</button>
+        <button class="modal-btn" style="background: #ffc107; color: #333;" onclick="processLeaveChoice('base64')">2. ضغط وتحويل الصورة مباشرة</button>
+        <button class="modal-btn" style="background: #6c757d;" onclick="processLeaveChoice('none')">3. بدون رفع صورة (كتابة السبب فقط)</button>
+        <button class="modal-btn" style="background: #dc3545;" onclick="closeLeaveModal()">إلغاء</button>
+    </div>
+</div>
+
+<!-- عنصر مخفي لفتح الكاميرا أو ألبوم الصور -->
+<input type="file" id="leaveImageInput" accept="image/*" style="display: none;" onchange="handleImageSelected(this)">
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
     import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, where } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
     // التحقق التلقائي من نوع الفتح: إذا فُتحت الصفحة كصفحة مستقلة (رابط خارجي)، يختفي زر العودة للوحة التحكم
     if (window.self === window.top && !document.referrer.includes(window.location.hostname)) {
@@ -72,7 +94,7 @@
         }
     }
 
-    const db = getFirestore(initializeApp({
+    const app = initializeApp({
         apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
         authDomain: "school4-management.firebaseapp.com",
         projectId: "school4-management",
@@ -80,7 +102,10 @@
         messagingSenderId: "157481747196",
         appId: "1:157481747196:web:ee4958d9589b8d01464d79",
         measurementId: "G-G89TZ8CC7Y"
-    }));
+    });
+
+    const db = getFirestore(app);
+    const storage = getStorage(app);
 
     // عرض اليوم والتاريخ في الأعلى بتوقيت بغداد المحلي
     const now = new Date();
@@ -98,6 +123,9 @@
         return "08:10";
     };
 
+    let activeEmpForLeave = null;
+    let selectedLeaveMethod = null;
+
     window.quickAction = async (code, name, type, action) => {
         const timeInput = now.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad'});
         const dayIndex = now.getDay();
@@ -114,7 +142,7 @@
         if (action === 'attendance') {
             if (!snap.empty) { alert("الموظف مسجل بالفعل!"); return; }
             let status = (timeInput > getLimit(type, dayIndex, timeInput)) ? "متأخر" : "حاضر";
-            await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: timeInput, exitTime: "", date: dateStr, day: dayName, reason: "" });
+            await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: timeInput, exitTime: "", date: dateStr, day: dayName, reason: "", leaveImage: "" });
             alert("تم تسجيل حضور: " + name);
         } else if (action === 'exit') {
             if (snap.empty) { alert("لم يتم تسجيل الحضور بعد!"); return; }
@@ -131,13 +159,87 @@
 
             await setDoc(doc(db, 'attendance', snap.docs[0].id), { exitTime: timeInput }, { merge: true });
             alert("تم تسجيل انصراف: " + name);
-        } else if (action === 'excused' || action === 'absent') {
+        } else if (action === 'excused') {
+            // فتح نافذة خيارات الإجازة عند الضغط على زر مجاز
             if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
-            let status = (action === 'excused') ? "مجاز" : "غائب";
-            await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: "-", exitTime: "-", date: dateStr, day: dayName, reason: "" });
-            alert("تم تسجيل حالة " + status + ": " + name);
+            activeEmpForLeave = { id: code, name: name, type: type };
+            document.getElementById('modalEmpName').innerText = `الموظف: ${name}`;
+            document.getElementById('leaveModal').style.display = 'flex';
+        } else if (action === 'absent') {
+            if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
+            await addDoc(collection(db, "attendance"), { empCode: code, name, status: "غائب", time: "-", exitTime: "-", date: dateStr, day: dayName, reason: "غائب", leaveImage: "" });
+            alert("تم تسجيل حالة غائب: " + name);
         }
     };
+
+    // دوال إدارة النافذة المنبثقة للإجازة
+    window.closeLeaveModal = () => {
+        document.getElementById('leaveModal').style.display = 'none';
+        activeEmpForLeave = null;
+    };
+
+    window.processLeaveChoice = (method) => {
+        selectedLeaveMethod = method;
+        document.getElementById('leaveModal').style.display = 'none';
+
+        if (method === 'none') {
+            saveLeaveData('');
+        } else {
+            // فتح الكاميرا أو ألبوم الصور في الآيباد
+            document.getElementById('leaveImageInput').click();
+        }
+    };
+
+    window.handleImageSelected = async (inputElement) => {
+        if (!inputElement.files || inputElement.files.length === 0) return;
+        let file = inputElement.files[0];
+        let imageUrl = '';
+
+        alert("جاري معالجة ورفع الصورة، لطفا الانتظار...");
+
+        try {
+            if (selectedLeaveMethod === 'storage') {
+                let storageRef = ref(storage, `leaves/${dateStr}_${activeEmpForLeave.id}_${file.name}`);
+                let snapshot = await uploadBytes(storageRef, file);
+                imageUrl = await getDownloadURL(snapshot.ref);
+            } else if (selectedLeaveMethod === 'base64') {
+                imageUrl = await new Promise((resolve) => {
+                    let reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            await saveLeaveData(imageUrl);
+        } catch (error) {
+            console.error(error);
+            alert("حدث خطأ أثناء رفع الصورة، تأكد من الاتصال أو حجم الملف.");
+        }
+        inputElement.value = '';
+    };
+
+    async function saveLeaveData(imageUrl) {
+        if (!activeEmpForLeave) return;
+        let reasonText = prompt("أدخل سبب الإجازة أو ملاحظات إضافية (اختياري):") || "إجازة رسمية";
+
+        try {
+            await addDoc(collection(db, "attendance"), {
+                empCode: activeEmpForLeave.id,
+                name: activeEmpForLeave.name,
+                status: "مجاز",
+                time: "-",
+                exitTime: "-",
+                date: dateStr,
+                day: dayName,
+                reason: reasonText,
+                leaveImage: imageUrl
+            });
+
+            alert(`تم تسجيل إجازة الموظف (${activeEmpForLeave.name}) بنجاح!`);
+        } catch (error) {
+            alert("خطأ في حفظ بيانات الإجازة في قاعدة البيانات.");
+        }
+    }
 
     let allEmployees = [];
     let currentCategory = 'الكل';
