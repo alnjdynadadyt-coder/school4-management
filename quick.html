@@ -20,11 +20,12 @@
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
         th { background-color: #28a745; color: white; }
         
-        /* تنسيق الأزرار بالترتيب المطلوب: حضور، انصراف، مجاز، غائب */
+        /* تنسيق الأزرار */
         .btn-quick { background: #28a745; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
         .btn-exit { background: #6f42c1; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
         .btn-excused { background: #17a2b8; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
         .btn-absent { background: #dc3545; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .btn-view-img { background: #ffc107; color: #333; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; font-size: 12px; margin-top: 5px; display: inline-block; text-decoration: none; }
 
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
 
@@ -33,20 +34,22 @@
         .modal-content { background: white; padding: 20px; border-radius: 10px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
         .modal-content h3 { margin-top: 0; color: #333; }
         .modal-btn { display: block; width: 100%; padding: 10px; margin: 10px 0; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px; color: white; }
+
+        /* نافذة عرض الصورة المكبرة */
+        .img-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; }
+        .img-modal-content { max-width: 90%; max-height: 90%; text-align: center; }
+        .img-modal-content img { max-width: 100%; max-height: 80vh; border-radius: 8px; border: 3px solid white; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- زر العودة سيختفي تلقائياً إذا فُتحت الصفحة كرابط خارجي مستقل -->
     <a href="index.html" id="backDashboardBtn" class="back-link">← العودة لوحة التحكم الرئيسية</a>
     
     <h2 style="color:#28a745; text-align:center;">⚡ لوحة التسجيل السريع للأسماء</h2>
     
-    <!-- عرض اليوم والتاريخ الحالي -->
     <div id="currentDayDate" class="date-badge">جاري تحميل التاريخ...</div>
 
-    <!-- أزرار تصفية الفئات السريعة -->
     <div class="filter-buttons">
         <button class="btn-filter active" onclick="filterByCategory('الكل', this)">الكل</button>
         <button class="btn-filter" onclick="filterByCategory('مدرس', this)">مدرس</button>
@@ -55,7 +58,6 @@
         <button class="btn-filter" onclick="filterByCategory('حارس', this)">حارس</button>
     </div>
 
-    <!-- حقل البحث الفوري لتصفية الأسماء -->
     <input type="text" id="searchEmp" class="search-box" placeholder="🔍 ابحث عن اسم الموظف لتسجيله بسرعة..." onkeyup="filterTable()">
 
     <table id="quickTable">
@@ -78,7 +80,14 @@
     </div>
 </div>
 
-<!-- عنصر مخفي لفتح الكاميرا أو ألبوم الصور -->
+<!-- نافذة عرض الصورة المكبرة -->
+<div id="imageViewerModal" class="img-modal-overlay" onclick="closeImageViewer()">
+    <div class="img-modal-content">
+        <img id="enlargedLeaveImg" src="" alt="صورة الإجازة">
+        <p style="color: white; margin-top: 10px; font-weight: bold;">اضغط في أي مكان لإغلاق الصورة</p>
+    </div>
+</div>
+
 <input type="file" id="leaveImageInput" accept="image/*" style="display: none;" onchange="handleImageSelected(this)">
 
 <script type="module">
@@ -86,12 +95,9 @@
     import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, where } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
-    // التحقق التلقائي من نوع الفتح: إذا فُتحت الصفحة كصفحة مستقلة (رابط خارجي)، يختفي زر العودة للوحة التحكم
     if (window.self === window.top && !document.referrer.includes(window.location.hostname)) {
         const backBtn = document.getElementById('backDashboardBtn');
-        if (backBtn) {
-            backBtn.style.display = 'none';
-        }
+        if (backBtn) backBtn.style.display = 'none';
     }
 
     const app = initializeApp({
@@ -107,7 +113,6 @@
     const db = getFirestore(app);
     const storage = getStorage(app);
 
-    // عرض اليوم والتاريخ في الأعلى بتوقيت بغداد المحلي
     const now = new Date();
     const dateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
     const dayName = now.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' });
@@ -125,6 +130,7 @@
 
     let activeEmpForLeave = null;
     let selectedLeaveMethod = null;
+    let attendanceTodayMap = {}; // تخزين حالة الموظف لهذا اليوم لجلب زر عرض الصورة
 
     window.quickAction = async (code, name, type, action) => {
         const timeInput = now.toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad'});
@@ -144,10 +150,10 @@
             let status = (timeInput > getLimit(type, dayIndex, timeInput)) ? "متأخر" : "حاضر";
             await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: timeInput, exitTime: "", date: dateStr, day: dayName, reason: "", leaveImage: "" });
             alert("تم تسجيل حضور: " + name);
+            loadEmployees();
         } else if (action === 'exit') {
             if (snap.empty) { alert("لم يتم تسجيل الحضور بعد!"); return; }
             
-            // 🛑 شرط منع الانصراف قبل الساعة 11:00 صباحاً لمدرس، إداري، موظف
             if (["مدرس", "إداري", "موظف"].includes(type)) {
                 const [h, m] = timeInput.split(':').map(Number);
                 const timeVal = h * 60 + m;
@@ -159,8 +165,8 @@
 
             await setDoc(doc(db, 'attendance', snap.docs[0].id), { exitTime: timeInput }, { merge: true });
             alert("تم تسجيل انصراف: " + name);
+            loadEmployees();
         } else if (action === 'excused') {
-            // فتح نافذة خيارات الإجازة عند الضغط على زر مجاز
             if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
             activeEmpForLeave = { id: code, name: name, type: type };
             document.getElementById('modalEmpName').innerText = `الموظف: ${name}`;
@@ -169,10 +175,10 @@
             if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
             await addDoc(collection(db, "attendance"), { empCode: code, name, status: "غائب", time: "-", exitTime: "-", date: dateStr, day: dayName, reason: "غائب", leaveImage: "" });
             alert("تم تسجيل حالة غائب: " + name);
+            loadEmployees();
         }
     };
 
-    // دوال إدارة النافذة المنبثقة للإجازة
     window.closeLeaveModal = () => {
         document.getElementById('leaveModal').style.display = 'none';
         activeEmpForLeave = null;
@@ -185,7 +191,6 @@
         if (method === 'none') {
             saveLeaveData('');
         } else {
-            // فتح الكاميرا أو ألبوم الصور في الآيباد
             document.getElementById('leaveImageInput').click();
         }
     };
@@ -236,15 +241,34 @@
             });
 
             alert(`تم تسجيل إجازة الموظف (${activeEmpForLeave.name}) بنجاح!`);
+            loadEmployees();
         } catch (error) {
             alert("خطأ في حفظ بيانات الإجازة في قاعدة البيانات.");
         }
     }
 
+    // دوال عرض صورة الإجازة المكبرة
+    window.viewLeaveImage = (imgUrl) => {
+        document.getElementById('enlargedLeaveImg').src = imgUrl;
+        document.getElementById('imageViewerModal').style.display = 'flex';
+    };
+
+    window.closeImageViewer = () => {
+        document.getElementById('imageViewerModal').style.display = 'none';
+    };
+
     let allEmployees = [];
     let currentCategory = 'الكل';
 
     async function loadEmployees() {
+        // جلب حضور اليوم لتحديد من هو مجاز ولديه صورة
+        const attSnap = await getDocs(query(collection(db, "attendance"), where("date", "==", dateStr)));
+        attendanceTodayMap = {};
+        attSnap.forEach(d => {
+            let data = d.data();
+            attendanceTodayMap[data.empCode] = data;
+        });
+
         const snap = await getDocs(collection(db, "employees"));
         allEmployees = [];
         snap.forEach(d => {
@@ -275,8 +299,16 @@
     function renderList(list) {
         let qRows = "";
         list.forEach(data => {
+            let attRecord = attendanceTodayMap[data.id];
+            let imageButtonHtml = "";
+
+            // إذا كان الموظف مسجلاً كـ "مجاز" ولديه صورة مخزنة، يظهر زر عرض الصورة مباشرة تحت اسم العرض
+            if (attRecord && attRecord.status === 'مجاز' && attRecord.leaveImage && attRecord.leaveImage.trim() !== "") {
+                imageButtonHtml = `<br><button class="btn-view-img" onclick="viewLeaveImage('${attRecord.leaveImage}')">📄 عرض صورة الإجازة</button>`;
+            }
+
             qRows += `<tr>
-                <td style="font-weight:bold; font-size:16px;">${data.name}</td>
+                <td style="font-weight:bold; font-size:16px;">${data.name} ${imageButtonHtml}</td>
                 <td>${data.type}</td>
                 <td>
                     <button class="btn-quick" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'attendance')">حضور</button>
