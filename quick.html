@@ -2,125 +2,86 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>التقارير الشاملة - اعدادية النجدين</title>
+    <title>لوحة التسجيل السريع للأسماء - اعدادية النجدين</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
-        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        
-        /* تنسيق ترويسة اليوم والتاريخ الجديدة */
-        .report-day-badge { background: #e2f0d9; color: #385723; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 16px; border: 1px solid #b7e1cd; }
-
-        .input-group { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; background: #fff3cd; padding: 15px; border-radius: 8px; align-items: center; }
-        input, select, button { padding: 8px 10px; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: bold; }
-        button { color: white; border: none; }
-        .btn-show { background: #ffc107; color: #333; }
-        .btn-present { background: #28a745; }
-        .btn-late { background: #fd7e14; }
-        .btn-leave { background: #17a2b8; }
-        .btn-absent { background: #dc3545; }
-        .btn-nocheck { background: #6f42c1; }
-        .btn-excel { background: #28a745; }
-        .btn-pdf { background: #343a40; }
-        
-        .report-header { text-align: center; margin-bottom: 15px; display: none; }
-        .report-header h3 { margin: 5px 0; color: #333; }
-
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; word-wrap: break-word; }
-        th { background-color: #ffc107; color: #333; }
-        
-        /* تخصيص عرض الأعمدة */
-        th:nth-child(1), td:nth-child(1) { width: 8%; }  /* الكود */
-        th:nth-child(2), td:nth-child(2) { width: 25%; } /* الاسم */
-        th:nth-child(3), td:nth-child(3) { width: 12%; } /* التصنيف */
-        th:nth-child(4), td:nth-child(4) { width: 12%; } /* وقت الحضور */
-        th:nth-child(5), td:nth-child(5) { width: 12%; } /* وقت الانصراف */
-        th:nth-child(6), td:nth-child(6) { width: 13%; } /* الحالة */
-        th:nth-child(7), td:nth-child(7) { width: 18%; } /* السبب */
-
+        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .header-badge { background: #e2f0d9; color: #385723; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 16px; border: 1px solid #b7e1cd; }
+        .filter-buttons { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center; }
+        .filter-buttons button { padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; color: white; font-weight: bold; font-size: 14px; }
+        .search-box { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        th { background-color: #28a745; color: white; }
+        .btn-action { padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; font-size: 12px; margin: 2px; }
+        .action-present { background: #28a745; }
+        .action-exit { background: #6f42c1; }
+        .action-leave { background: #17a2b8; }
+        .action-absent { background: #dc3545; }
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
-        .stats { display: flex; gap: 15px; margin-bottom: 15px; font-weight: bold; justify-content: space-around; background: #f8f9fa; padding: 10px; border-radius: 5px; }
-
-        @media print {
-            .input-group, .back-link, button { display: none !important; }
-            .report-header { display: block !important; }
-            body { background: white; padding: 0; }
-            .container { box-shadow: none; padding: 0; }
-        }
+        
+        /* تنسيق النافذة المنبثقة لاختيار طريقة الإجازة */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 20px; border-radius: 10px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .modal-content h3 { margin-top: 0; color: #333; }
+        .modal-btn { display: block; width: 100%; padding: 10px; margin: 10px 0; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px; color: white; }
     </style>
 </head>
 <body>
 
-<div class="container" id="printableArea">
+<div class="container">
     <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
+    <h2 style="color:#28a745; text-align:center;">⚡ لوحة التسجيل السريع للأسماء</h2>
     
-    <div class="report-header">
-        <h2>اعدادية النجدين</h2>
-        <h3 id="printReportTitle">تقرير الحضور والغياب اليومي</h3>
-        <p>اليوم والتاريخ: <span id="printDate"></span></p>
-        <hr style="border: 0.5px solid #ccc;">
-    </div>
-
-    <h2 style="color:#d39e00; text-align:center;">📊 تقارير الحضور والغياب اليومية</h2>
-    
-    <!-- ترويسة اليوم والتاريخ الجديدة -->
-    <div id="reportDayDateBadge" class="report-day-badge">
+    <div id="currentDateBadge" class="header-badge">
         📅 اليوم والتاريخ: جاري التحميل...
     </div>
 
-    <div class="input-group">
-        <label>التاريخ:</label>
-        <input type="date" id="reportDate" onchange="applyCurrentFilter()" style="background: white; font-weight: normal;">
-        
-        <label>التصنيف:</label>
-        <select id="categoryFilter" onchange="applyCurrentFilter()" style="background: white;">
-            <option value="الكل">جميع التصنيفات</option>
-            <option value="مدرس">مدرس</option>
-            <option value="إداري">إداري</option>
-            <option value="موظف">موظف</option>
-            <option value="حارس">حارس</option>
-        </select>
-
-        <button class="btn-show" onclick="filterByStatus('all')">عرض الكل</button>
-        <button class="btn-present" onclick="filterByStatus('حاضر')">الحاضرون</button>
-        <button class="btn-late" onclick="filterByStatus('متأخر')">المتأخرون</button>
-        <button class="btn-leave" onclick="filterByStatus('مجاز')">المجازون</button>
-        <button class="btn-absent" onclick="showAbsentList()">المتغيبون</button>
-        <button class="btn-nocheck" onclick="filterNoExit()">بدون انصراف</button>
-        <button class="btn-excel" onclick="exportExcel()">Excel</button>
-        <button class="btn-pdf" onclick="window.print()">PDF</button>
+    <div class="filter-buttons">
+        <button style="background:#28a745;" onclick="filterCategory('الكل')">الكل</button>
+        <button style="background:#343a40;" onclick="filterCategory('مدرس')">مدرس</button>
+        <button style="background:#6c757d;" onclick="filterCategory('إداري')">إداري</button>
+        <button style="background:#17a2b8;" onclick="filterCategory('موظف')">موظف</button>
+        <button style="background:#ffc107; color:#333;" onclick="filterCategory('حارس')">حارس</button>
     </div>
 
-    <div class="stats" id="statsBox">
-        <span>إجمالي الحضور: <span id="countPresent">0</span></span>
-        <span>إجمالي المتأخرين: <span id="countLate">0</span></span>
-        <span>إجمالي المجازين: <span id="countLeave">0</span></span>
-        <span>إجمالي الغائبين: <span id="countAbsent">0</span></span>
-    </div>
+    <input type="text" id="searchInput" class="search-box" placeholder="🔍 ابحث عن اسم الموظف لتسجيله بسرعة..." onkeyup="searchEmployees()">
 
     <table>
         <thead>
             <tr>
-                <th>الكود</th>
                 <th>الاسم</th>
                 <th>التصنيف</th>
-                <th>وقت الحضور</th>
-                <th>وقت الانصراف</th>
-                <th>الحالة</th>
-                <th>السبب / ملاحظات</th>
+                <th>إجراءات الحضور والانصراف</th>
             </tr>
         </thead>
-        <tbody id="reportTable">
-            <tr><td colspan="7" style="color: #6c757d;">جاري تحميل البيانات من النظام...</td></tr>
+        <tbody id="quickTable">
+            <tr><td colspan="3" style="color: #6c757d;">جاري تحميل الأسماء...</td></tr>
         </tbody>
     </table>
 </div>
 
+<!-- نافذة اختيار طريقة إدخال الإجازة -->
+<div id="leaveModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>خيارات تسجيل الإجازة</h3>
+        <p id="modalEmpName" style="font-weight: bold; color: #17a2b8;"></p>
+        <button class="modal-btn" style="background: #28a745;" onclick="processLeaveChoice('storage')">1. رفع صورة حقيقية (سحابي)</button>
+        <button class="modal-btn" style="background: #ffc107; color: #333;" onclick="processLeaveChoice('base64')">2. ضغط وتحويل الصورة مباشرة</button>
+        <button class="modal-btn" style="background: #6c757d;" onclick="processLeaveChoice('none')">3. بدون رفع صورة (كتابة السبب فقط)</button>
+        <button class="modal-btn" style="background: #dc3545;" onclick="closeLeaveModal()">إلغاء</button>
+    </div>
+</div>
+
+<!-- عنصر مخفي لفتح الكاميرا أو ألبوم الصور -->
+<input type="file" id="leaveImageInput" accept="image/*" style="display: none;" onchange="handleImageSelected(this)">
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
-    const db = getFirestore(initializeApp({
+    const firebaseConfig = {
         apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
         authDomain: "school4-management.firebaseapp.com",
         projectId: "school4-management",
@@ -128,265 +89,203 @@
         messagingSenderId: "157481747196",
         appId: "1:157481747196:web:ee4958d9589b8d01464d79",
         measurementId: "G-G89TZ8CC7Y"
-    }));
-
-    // ضبط التاريخ الافتراضي بدقة ليطابق توقيت بغداد المحلي
-    const baghdadDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
-    document.getElementById('reportDate').value = baghdadDateStr;
-
-    let cachedEmployees = {};
-    let cachedAttendance = {};
-    window.currentMode = 'all';
-    window.currentSubStatus = 'all';
-
-    function getFormattedDateString(dateVal) {
-        if (!dateVal) return "";
-        let d = new Date(dateVal);
-        let options = { weekday: 'long', year: 'numeric', month: 'numeric', day: 'numeric', timeZone: 'Asia/Baghdad' };
-        return d.toLocaleDateString('ar-IQ', options);
-    }
-
-    window.applyCurrentFilter = async () => {
-        if (Object.keys(cachedEmployees).length === 0) {
-            await loadAllData();
-        }
-        if (window.currentMode === 'all' || window.currentMode === 'status') {
-            filterByStatus(window.currentSubStatus);
-        } else if (window.currentMode === 'absent') {
-            showAbsentList();
-        } else if (window.currentMode === 'noexit') {
-            filterNoExit();
-        }
     };
 
-    async function loadAllData() {
-        const dateVal = document.getElementById('reportDate').value;
-        const formattedDate = getFormattedDateString(dateVal);
-        
-        // تحديث ترويسة اليوم والتاريخ في الشاشة تلقائياً
-        document.getElementById('reportDayDateBadge').innerText = `📅 اليوم والتاريخ: ${formattedDate}`;
-        document.getElementById('printDate').innerText = formattedDate;
-        
-        try {
-            const empSnap = await getDocs(collection(db, "employees"));
-            cachedEmployees = {};
-            empSnap.forEach(d => { cachedEmployees[d.id] = { id: d.id, ...d.data() }; });
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
 
-            const attQuery = query(collection(db, "attendance"), where("date", "==", dateVal));
-            const attSnap = await getDocs(attQuery);
-            cachedAttendance = {};
-            attSnap.forEach(d => { 
-                let data = d.data();
-                cachedAttendance[data.empCode] = data; 
+    const baghdadDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
+    
+    function getFormattedDateString() {
+        let d = new Date();
+        return d.toLocaleDateString('ar-IQ', { weekday: 'long', year: 'numeric', month: 'numeric', day: 'numeric', timeZone: 'Asia/Baghdad' });
+    }
+    document.getElementById('currentDateBadge').innerText = `📅 اليوم والتاريخ: ${getFormattedDateString()}`;
+
+    let allEmployees = [];
+    let currentCategory = 'الكل';
+    let activeEmpForLeave = null;
+    let selectedLeaveMethod = null;
+
+    async function loadData() {
+        try {
+            const querySnapshot = await getDocs(collection(db, "employees"));
+            allEmployees = [];
+            querySnapshot.forEach((docSnap) => {
+                allEmployees.push({ id: docSnap.id, ...docSnap.data() });
             });
+            allEmployees.sort((a, b) => Number(a.id) - Number(b.id));
+            renderTable(allEmployees);
         } catch (error) {
             console.error(error);
+            document.getElementById('quickTable').innerHTML = `<tr><td colspan="3" style="color:red;">خطأ في تحميل البيانات</td></tr>`;
         }
     }
 
-    window.filterByStatus = async (statusType) => {
-        window.currentMode = 'status';
-        window.currentSubStatus = statusType;
-        await loadAllData();
-
-        const selectedCategory = document.getElementById('categoryFilter').value;
-        let titleSuffix = statusType === 'all' ? 'جميع المسجلين' : `قائمة (${statusType})`;
-        document.getElementById('printReportTitle').innerText = `تقرير الحضور والغياب (${titleSuffix} - ${selectedCategory})`;
-
+    function renderTable(list) {
         let rows = "";
-        let pCount = 0, lCount = 0, lvCount = 0;
-
-        let recordedList = Object.values(cachedAttendance);
-
-        Object.values(cachedAttendance).forEach(r => {
-            let s = r.status || "حاضر";
-            if (s === "حاضر") pCount++;
-            else if (s === "متأخر") lCount++;
-            else if (s === "مجاز") lvCount++;
-        });
-
-        recordedList = recordedList.filter(record => {
-            let empInfo = cachedEmployees[record.empCode] || {};
-            let empType = record.type || empInfo.type || '-';
-            if (selectedCategory !== "الكل" && empType !== selectedCategory) return false;
-
-            let status = record.status || "حاضر";
-            if (statusType !== 'all' && status !== statusType) return false;
-
-            return true;
-        }).sort((a, b) => Number(a.empCode || 0) - Number(b.empCode || 0));
-
-        if (recordedList.length === 0) {
-            document.getElementById('reportTable').innerHTML = `<tr><td colspan="7" style="color: #6c757d;">لا توجد سجلات مطابقة لهذه الفئة والحالة</td></tr>`;
-            updateStats(pCount, lCount, lvCount, calculateAbsentCount(selectedCategory));
-            return;
-        }
-
-        recordedList.forEach(record => {
-            let status = record.status || "حاضر";
-            let color = status === 'حاضر' ? 'green' : (status === 'متأخر' ? 'orange' : (status === 'مجاز' ? 'blue' : 'red'));
-            
-            let empInfo = cachedEmployees[record.empCode] || {};
-            let empType = record.type || empInfo.type || '-';
-            let empName = record.name || empInfo.name || 'مستخدم';
-
-            rows += `<tr>
-                <td>${record.empCode || '-'}</td>
-                <td style="font-weight:bold; text-align:right; padding-right:15px;">${empName}</td>
-                <td>${empType}</td>
-                <td>${record.time || '-'}</td>
-                <td>${record.exitTime || '-'}</td>
-                <td style="font-weight:bold; color: ${color};">${status}</td>
-                <td>${record.reason || '-'}</td>
-            </tr>`;
-        });
-
-        document.getElementById('reportTable').innerHTML = rows;
-        let absentCount = calculateAbsentCount(selectedCategory);
-        updateStats(pCount, lCount, lvCount, absentCount);
-    };
-
-    function calculateAbsentCount(categoryFilter) {
-        let count = 0;
-        for (let code in cachedEmployees) {
-            let emp = cachedEmployees[code];
-            if (categoryFilter !== "الكل" && (emp.type || '-') !== categoryFilter) continue;
-            if (!cachedAttendance[code]) count++;
-        }
-        return count;
-    }
-
-    window.showAbsentList = async () => {
-        window.currentMode = 'absent';
-        await loadAllData();
-        const selectedCategory = document.getElementById('categoryFilter').value;
-        
-        document.getElementById('printReportTitle').innerText = `كشف المتغيبين (لم يسجلوا الحضور - ${selectedCategory})`;
-
-        let rows = "";
-        let absentCount = 0;
-
-        let sortedCodes = Object.keys(cachedEmployees).sort((a, b) => Number(a) - Number(b));
-
-        sortedCodes.forEach(code => {
-            let emp = cachedEmployees[code];
-            if (selectedCategory !== "الكل" && (emp.type || '-') !== selectedCategory) return;
-
-            if (!cachedAttendance[code]) {
-                absentCount++;
+        if (list.length === 0) {
+            rows = `<tr><td colspan="3" style="color:#6c757d;">لا توجد أسماء مطابقة</td></tr>`;
+        } else {
+            list.forEach(emp => {
                 rows += `<tr>
-                    <td>${emp.id}</td>
                     <td style="font-weight:bold; text-align:right; padding-right:15px;">${emp.name}</td>
                     <td>${emp.type || '-'}</td>
-                    <td>-</td>
-                    <td>-</td>
-                    <td style="font-weight:bold; color: red;">غائب (لم يسجل)</td>
-                    <td>لم يقم بتسجيل الحضور</td>
+                    <td>
+                        <button class="btn-action action-present" onclick="registerStatus('${emp.id}', '${emp.name}', '${emp.type || '-'}', 'حاضر')">حضور</button>
+                        <button class="btn-action action-exit" onclick="registerExit('${emp.id}')">انصراف</button>
+                        <button class="btn-action action-leave" onclick="openLeaveModal('${emp.id}', '${emp.name}', '${emp.type || '-'}')">مجاز</button>
+                        <button class="btn-action action-absent" onclick="registerStatus('${emp.id}', '${emp.name}', '${emp.type || '-'}', 'غائب')">غائب</button>
+                    </td>
                 </tr>`;
-            }
-        });
-
-        if (rows === "") {
-            rows = `<tr><td colspan="7" style="color: green; font-weight: bold;">رائع! الجميع في هذه الفئة قاموا بتسجيل الحضور لهذا اليوم.</td></tr>`;
+            });
         }
-
-        document.getElementById('reportTable').innerHTML = rows;
-        
-        let pCount = 0, lCount = 0, lvCount = 0;
-        Object.values(cachedAttendance).forEach(r => {
-            let s = r.status || "حاضر";
-            if (s === "حاضر") pCount++;
-            else if (s === "متأخر") lCount++;
-            else if (s === "مجاز") lvCount++;
-        });
-        updateStats(pCount, lCount, lvCount, absentCount);
-    };
-
-    window.filterNoExit = async () => {
-        window.currentMode = 'noexit';
-        await loadAllData();
-        const selectedCategory = document.getElementById('categoryFilter').value;
-        
-        document.getElementById('printReportTitle').innerText = `موظفون لم يسجلوا انصرافهم (${selectedCategory})`;
-
-        let rows = "";
-        let count = 0;
-        
-        let sortedAttendance = Object.values(cachedAttendance).sort((a, b) => Number(a.empCode || 0) - Number(b.empCode || 0));
-
-        sortedAttendance.forEach(record => {
-            let timeVal = record.time || "-";
-            let exitTime = record.exitTime || "-";
-            let status = record.status || "حاضر";
-
-            if (timeVal !== "-" && exitTime === "-" && status !== "غائب") {
-                let empInfo = cachedEmployees[record.empCode] || {};
-                let empType = record.type || empInfo.type || '-';
-                
-                if (selectedCategory !== "الكل" && empType !== selectedCategory) return;
-
-                count++;
-                let empName = record.name || empInfo.name || 'مستخدم';
-
-                rows += `<tr>
-                    <td>${record.empCode}</td>
-                    <td style="font-weight:bold; text-align:right; padding-right:15px;">${empName}</td>
-                    <td>${empType}</td>
-                    <td>${timeVal}</td>
-                    <td>-</td>
-                    <td style="font-weight:bold; color: orange;">${status} (بدون انصراف)</td>
-                    <td>${record.reason || '-'}</td>
-                </tr>`;
-            }
-        });
-
-        if (rows === "" || count === 0) {
-            rows = `<tr><td colspan="7" style="color: green; font-weight: bold;">ممتاز! لا يوجد أحد في هذه الفئة مسجل حضور وبدون انصراف.</td></tr>`;
-        }
-
-        document.getElementById('reportTable').innerHTML = rows;
-        
-        let pCount = 0, lCount = 0, lvCount = 0;
-        Object.values(cachedAttendance).forEach(r => {
-            let s = r.status || "حاضر";
-            if (s === "حاضر") pCount++;
-            else if (s === "متأخر") lCount++;
-            else if (s === "مجاز") lvCount++;
-        });
-        updateStats(pCount, lCount, lvCount, calculateAbsentCount(selectedCategory));
-    };
-
-    function updateStats(p, l, lv, a) {
-        document.getElementById('countPresent').innerText = p;
-        document.getElementById('countLate').innerText = l;
-        document.getElementById('countLeave').innerText = lv;
-        document.getElementById('countAbsent').innerText = a;
+        document.getElementById('quickTable').innerHTML = rows;
     }
 
-    window.exportExcel = () => {
-        const dateVal = document.getElementById('reportDate').value;
-        let fullDateStr = getFormattedDateString(dateVal);
-        let html = `
-            <html dir="rtl">
-            <head><meta charset="UTF-8"></head>
-            <body>
-                <h3>اعدادية النجدين - تقرير الحضور والغياب</h3>
-                <p>اليوم والتاريخ: ${fullDateStr}</p>
-                ${document.querySelector("table").outerHTML}
-            </body>
-            </html>
-        `;
-        let blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-        let url = URL.createObjectURL(blob);
-        let a = document.createElement('a');
-        a.href = url;
-        a.download = `attendance_report_${dateVal}.xls`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+    window.filterCategory = (cat) => {
+        currentCategory = cat;
+        let filtered = cat === 'الكل' ? allEmployees : allEmployees.filter(e => e.type === cat);
+        renderTable(filtered);
     };
 
-    filterByStatus('all');
+    window.searchEmployees = () => {
+        let keyword = document.getElementById('searchInput').value.toLowerCase();
+        let filtered = allEmployees.filter(e => {
+            let matchesCat = currentCategory === 'الكل' || e.type === currentCategory;
+            let matchesName = e.name.toLowerCase().includes(keyword);
+            return matchesCat && matchesName;
+        });
+        renderTable(filtered);
+    };
+
+    // وظيفة تسجيل الحضور / الغياب العادي
+    window.registerStatus = async (empCode, empName, empType, status) => {
+        let timeNow = new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit' });
+        let docId = `${baghdadDateStr}_${empCode}`;
+        
+        try {
+            let docRef = doc(db, "attendance", docId);
+            let docSnap = await getDoc(docRef);
+            let existingExit = docSnap.exists() ? (docSnap.data().exitTime || "-") : "-";
+
+            await setDoc(docRef, {
+                empCode: empCode,
+                name: empName,
+                type: empType,
+                date: baghdadDateStr,
+                time: status === 'غائب' ? '-' : timeNow,
+                exitTime: existingExit,
+                status: status,
+                reason: status === 'غائب' ? 'غائب' : '-',
+                leaveImage: ''
+            }, { merge: true });
+            
+            alert(`تم تسجيل (${status}) للموظف: ${empName} بنجاح!`);
+        } catch (error) {
+            alert("حدث خطأ أثناء الحفظ");
+        }
+    };
+
+    // تسجيل وقت الانصراف
+    window.registerExit = async (empCode) => {
+        let timeNow = new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Baghdad', hour: '2-digit', minute: '2-digit' });
+        let docId = `${baghdadDateStr}_${empCode}`;
+        try {
+            let docRef = doc(db, "attendance", docId);
+            let docSnap = await getDoc(docRef);
+            if (!docSnap.exists()) {
+                alert("لم يتم تسجيل حضور هذا الموظف اليوم ليتم تسجيل انصرافه!");
+                return;
+            }
+            await setDoc(docRef, { exitTime: timeNow }, { merge: true });
+            alert(`تم تسجيل وقت الانصراف بنجاح (${timeNow})`);
+        } catch (error) {
+            alert("حدث خطأ أثناء تسجيل الانصراف");
+        }
+    };
+
+    // إدارة نافذة الإجازة
+    window.openLeaveModal = (id, name, type) => {
+        activeEmpForLeave = { id, name, type };
+        document.getElementById('modalEmpName').innerText = `الموظف: ${name}`;
+        document.getElementById('leaveModal').style.display = 'flex';
+    };
+
+    window.closeLeaveModal = () => {
+        document.getElementById('leaveModal').style.display = 'none';
+        activeEmpForLeave = null;
+    };
+
+    window.processLeaveChoice = (method) => {
+        selectedLeaveMethod = method;
+        closeLeaveModal();
+
+        if (method === 'none') {
+            saveLeaveToFirebase('');
+        } else {
+            // فتح مستعرض الملفات/الكاميرا لاختيار الصورة
+            document.getElementById('leaveImageInput').click();
+        }
+    };
+
+    // التعامل مع الصورة المختارة من جهاز الـ iPad
+    window.handleImageSelected = async (inputElement) => {
+        if (!inputElement.files || inputElement.files.length === 0) return;
+        let file = inputElement.files[0];
+        let imageUrl = '';
+
+        let loadingAlert = alert("جاري معالجة ورفع الصورة، لطفا الانتظار...");
+
+        try {
+            if (selectedLeaveMethod === 'storage') {
+                // الطريقة الأولى: الرفع لـ Firebase Storage
+                let storageRef = ref(storage, `leaves/${baghdadDateStr}_${activeEmpForLeave.id}_${file.name}`);
+                let snapshot = await uploadBytes(storageRef, file);
+                imageUrl = await getDownloadURL(snapshot.ref);
+            } else if (selectedLeaveMethod === 'base64') {
+                // الطريقة الثانية: تحويل لـ Base64
+                imageUrl = await new Promise((resolve) => {
+                    let reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            await saveLeaveToFirebase(imageUrl);
+        } catch (error) {
+            console.error(error);
+            alert("حدث خطأ أثناء رفع الصورة، تأكد من الاتصال أو حجم الملف.");
+        }
+        inputElement.value = ''; // تصفيف الحقل
+    };
+
+    async function saveLeaveToFirebase(imageUrl) {
+        if (!activeEmpForLeave) return;
+        let docId = `${baghdadDateStr}_${activeEmpForLeave.id}`;
+        let reasonText = prompt("أدخل سبب الإجازة أو ملاحظات إضافية (اختياري):") || "إجازة رسمية";
+
+        try {
+            await setDoc(doc(db, "attendance", docId), {
+                empCode: activeEmpForLeave.id,
+                name: activeEmpForLeave.name,
+                type: activeEmpForLeave.type,
+                date: baghdadDateStr,
+                time: '-',
+                exitTime: '-',
+                status: 'مجاز',
+                reason: reasonText,
+                leaveImage: imageUrl
+            }, { merge: true });
+
+            alert(`تم تسجيل إجازة الموظف (${activeEmpForLeave.name}) بنجاح!`);
+        } catch (error) {
+            alert("خطأ في حفظ بيانات الإجازة في قاعدة البيانات.");
+        }
+    }
+
+    loadData();
 </script>
 </body>
 </html>
