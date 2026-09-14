@@ -14,7 +14,35 @@
         
         #statusMsg { margin-bottom: 20px; font-weight: bold; padding: 12px; border-radius: 10px; font-size: 14px; line-height: 1.5; background: #e2f0d9; color: #385723; }
         
-        /* تصميم الأزرار الجديدة الكبيرة والرائعة */
+        /* تصميم بطاقة تفاصيل الموظف الجديدة والأنيقة */
+        .info-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 14px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: right;
+            display: none;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .info-card div {
+            margin-bottom: 8px;
+            font-size: 15px;
+            color: #495057;
+            display: flex;
+            justify-content: space-between;
+        }
+        .info-card div:last-child { margin-bottom: 0; }
+        .info-card span { font-weight: bold; color: #212529; }
+        .badge-status {
+            padding: 2px 10px;
+            border-radius: 6px;
+            color: white;
+            font-size: 13px;
+        }
+        .bg-success-custom { background-color: #28a745; }
+        .bg-warning-custom { background-color: #ffc107; color: #212529 !important; }
+        
         .btn-container { display: flex; flex-direction: column; gap: 15px; margin-top: 15px; }
         .btn-reg { 
             padding: 16px 20px; 
@@ -42,6 +70,15 @@
     <h2>تسجيل الحضور اليومي<br>اعدادية النجدين</h2>
     <div id="statusMsg">⚡ النظام جاهز وسريع، أدخل الكود وسجل حضورك أو انصرافك.</div>
     
+    <!-- بطاقة تفاصيل الحضور للموظف -->
+    <div id="employeeCard" class="info-card">
+        <div><span>الاسم:</span> <span id="cardName">-</span></div>
+        <div><span>الحالة:</span> <span id="cardStatus">-</span></div>
+        <div><span>وقت الحضور:</span> <span id="cardTime">-</span></div>
+        <div><span>وقت الانصراف:</span> <span id="cardExit">-</span></div>
+        <div><span>اليوم والتاريخ:</span> <span id="cardDate">-</span></div>
+    </div>
+
     <div id="regArea">
         <input type="text" id="empCode" placeholder="أدخل كود الموظف" autocomplete="off">
 
@@ -77,6 +114,7 @@
     }
 
     const msgDiv = document.getElementById('statusMsg');
+    const empCard = document.getElementById('employeeCard');
 
     const getLimit = (type, timeInput) => {
         const [h, m] = timeInput.split(':').map(Number);
@@ -94,6 +132,7 @@
             msgDiv.style.background = "#f8d7da";
             msgDiv.style.color = "#721c24";
             msgDiv.innerHTML = "⚠️ يرجى كتابة كود الموظف أولاً!";
+            empCard.style.display = "none";
             document.getElementById('empCode').focus();
             return;
         }
@@ -101,6 +140,7 @@
         msgDiv.style.background = "#d1ecf1";
         msgDiv.style.color = "#0c5460";
         msgDiv.innerHTML = "⏳ جاري تنفيذ الطلب بسرعة فائقة...";
+        empCard.style.display = "none";
 
         try {
             const empSnap = await getDoc(doc(db, "employees", code));
@@ -158,9 +198,19 @@
                 if (existingData && existingData.date === currentDate && existingData.time && existingData.time !== "" && existingData.time !== "---") {
                     msgDiv.style.background = "#fff3cd";
                     msgDiv.style.color = "#856404";
-                    msgDiv.innerHTML = "⚠️ لقد قمت بتسجيل الحضور مسبقاً اليوم!";
+                    msgDiv.innerHTML = "⚠️ تنبيه: لقد قمت بتسجيل الحضور مسبقاً اليوم!";
+                    
+                    // تعبئة البطاقة بالبيانات الموجودة مسبقاً
+                    document.getElementById('cardName').innerText = empData.name;
+                    let badgeClass = existingData.status === "حاضر" ? "bg-success-custom" : "bg-warning-custom";
+                    document.getElementById('cardStatus').innerHTML = `<span class="badge-status ${badgeClass}">${existingData.status}</span>`;
+                    document.getElementById('cardTime').innerText = existingData.time;
+                    document.getElementById('cardExit').innerText = existingData.exitTime || "غير مسجل بعد";
+                    document.getElementById('cardDate').innerText = `${existingData.day} (${existingData.date})`;
+                    empCard.style.display = "block";
                     return;
                 }
+                
                 let status = (nowTime > getLimit(empData.type, nowTime)) ? "متأخر" : "حاضر";
                 
                 await addDoc(collection(db, "attendance"), {
@@ -178,13 +228,24 @@
                 msgDiv.style.background = "#e2f0d9";
                 msgDiv.style.color = "#385723";
                 msgDiv.innerHTML = "✅ تم تسجيل الحضور بنجاح تام!";
+
+                // عرض بطاقة الحضور الجديدة
+                document.getElementById('cardName').innerText = empData.name;
+                let badgeClass = status === "حاضر" ? "bg-success-custom" : "bg-warning-custom";
+                document.getElementById('cardStatus').innerHTML = `<span class="badge-status ${badgeClass}">${status}</span>`;
+                document.getElementById('cardTime').innerText = nowTime;
+                document.getElementById('cardExit').innerText = "قيد الانتظار (لم يتم الانصراف)";
+                document.getElementById('cardDate').innerText = `${currentDayName} (${currentDate})`;
+                empCard.style.display = "block";
+
             } else {
                 if (!existingData || (existingData.exitTime && existingData.exitTime !== "")) {
                     msgDiv.style.background = "#fff3cd";
                     msgDiv.style.color = "#856404";
-                    msgDiv.innerHTML = "⚠️ لا يوجد سجل حضور مفتوح للانصراف!";
+                    msgDiv.innerHTML = "⚠️ عذراً، لا يوجد سجل حضور مفتوح لتسجيل الانصراف!";
                     return;
                 }
+                
                 await setDoc(doc(db, 'attendance', targetDoc.id), { 
                     exitTime: nowTime,
                     exitPhoto: ""
@@ -193,9 +254,17 @@
                 msgDiv.style.background = "#e2f0d9";
                 msgDiv.style.color = "#385723";
                 msgDiv.innerHTML = "✅ تم تسجيل الانصراف بنجاح تام!";
+
+                // عرض بطاقة الانصراف
+                document.getElementById('cardName').innerText = empData.name;
+                let badgeClass = existingData.status === "حاضر" ? "bg-success-custom" : "bg-warning-custom";
+                document.getElementById('cardStatus').innerHTML = `<span class="badge-status ${badgeClass}">${existingData.status}</span>`;
+                document.getElementById('cardTime').innerText = existingData.time;
+                document.getElementById('cardExit').innerText = nowTime;
+                document.getElementById('cardDate').innerText = `${existingData.day} (${existingData.date})`;
+                empCard.style.display = "block";
             }
 
-            setTimeout(() => location.reload(), 1000);
         } catch (err) {
             console.error(err);
             msgDiv.style.background = "#f8d7da";
@@ -206,4 +275,3 @@
 </script>
 </body>
 </html>
- 
