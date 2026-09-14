@@ -1,1 +1,209 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الحضور - اعدادية النجدين</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 15px; background: #eef2f5; margin: 0; }
+        .container { max-width: 480px; margin: auto; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; font-size: 22px; margin-bottom: 15px; }
+        
+        input[type="text"] { padding: 14px; width: 85%; margin-bottom: 20px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: 18px; text-align: center; outline: none; transition: 0.3s; }
+        input[type="text"]:focus { border-color: #3498db; box-shadow: 0 0 8px rgba(52, 152, 219, 0.2); }
+        
+        #statusMsg { margin-bottom: 20px; font-weight: bold; padding: 12px; border-radius: 10px; font-size: 14px; line-height: 1.5; background: #e2f0d9; color: #385723; }
+        
+        /* تصميم الأزرار الجديدة الكبيرة والرائعة */
+        .btn-container { display: flex; flex-direction: column; gap: 15px; margin-top: 15px; }
+        .btn-reg { 
+            padding: 16px 20px; 
+            font-size: 18px; 
+            color: white; 
+            border: none; 
+            border-radius: 14px; 
+            cursor: pointer; 
+            width: 100%; 
+            font-weight: bold; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: all 0.2s ease-in-out;
+        }
+        .btn-reg:active { transform: scale(0.97); }
+        .btn-attendance { background: linear-gradient(135deg, #27ae60, #2ecc71); }
+        .btn-exit { background: linear-gradient(135deg, #8e44ad, #9b59b6); }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>تسجيل الحضور اليومي<br>اعدادية النجدين</h2>
+    <div id="statusMsg">⚡ النظام جاهز وسريع، أدخل الكود وسجل حضورك أو انصرافك.</div>
+    
+    <div id="regArea">
+        <input type="text" id="empCode" placeholder="أدخل كود الموظف" autocomplete="off">
 
+        <div class="btn-container">
+            <button class="btn-reg btn-attendance" onclick="registerAction('attendance')">
+                <span>🟢</span> تسجيل الحضور
+            </button>
+            <button class="btn-reg btn-exit" onclick="registerAction('exit')">
+                <span>🟣</span> تسجيل الانصراف
+            </button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDoc, doc, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+    const db = getFirestore(initializeApp({
+        apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
+        authDomain: "school4-management.firebaseapp.com",
+        projectId: "school4-management",
+        storageBucket: "school4-management.firebasestorage.app",
+        messagingSenderId: "157481747196",
+        appId: "1:157481747196:web:ee4958d9589b8d01464d79",
+        measurementId: "G-G89TZ8CC7Y"
+    }));
+
+    let deviceId = localStorage.getItem('school_device_id');
+    if (!deviceId) {
+        deviceId = 'dev_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+        localStorage.setItem('school_device_id', deviceId);
+    }
+
+    const msgDiv = document.getElementById('statusMsg');
+
+    const getLimit = (type, timeInput) => {
+        const [h, m] = timeInput.split(':').map(Number);
+        const timeVal = h * 60 + m;
+        if (type === "حارس") return (timeVal < 12 * 60) ? "07:10" : "17:10";
+        if (type === "موظف") return (timeVal < 11 * 60) ? "07:10" : "12:10";
+        if (type === "إداري") return "07:40";
+        if (type === "مدرس") return "08:10";
+        return "08:10";
+    };
+
+    window.registerAction = async (action) => {
+        const code = document.getElementById('empCode').value.trim();
+        if (!code) {
+            msgDiv.style.background = "#f8d7da";
+            msgDiv.style.color = "#721c24";
+            msgDiv.innerHTML = "⚠️ يرجى كتابة كود الموظف أولاً!";
+            document.getElementById('empCode').focus();
+            return;
+        }
+
+        msgDiv.style.background = "#d1ecf1";
+        msgDiv.style.color = "#0c5460";
+        msgDiv.innerHTML = "⏳ جاري تنفيذ الطلب بسرعة فائقة...";
+
+        try {
+            const empSnap = await getDoc(doc(db, "employees", code));
+            if (!empSnap.exists()) {
+                msgDiv.style.background = "#f8d7da";
+                msgDiv.style.color = "#721c24";
+                msgDiv.innerHTML = "❌ كود الموظف غير صحيح!";
+                return;
+            }
+            const empData = empSnap.data();
+
+            // التحقق من بصمة الجهاز
+            const qDev = query(collection(db, "employees"), where("deviceId", "==", deviceId));
+            const devSnap = await getDocs(qDev);
+            let ownerEmpCode = null;
+            devSnap.forEach(d => { if (d.id !== code) ownerEmpCode = d.id; });
+
+            if (ownerEmpCode) {
+                msgDiv.style.background = "#f8d7da";
+                msgDiv.style.color = "#721c24";
+                msgDiv.innerHTML = "❌ هذا الهاتف مسجل لموظف آخر!";
+                return;
+            }
+
+            if (empData.deviceId && empData.deviceId !== deviceId) {
+                msgDiv.style.background = "#f8d7da";
+                msgDiv.style.color = "#721c24";
+                msgDiv.innerHTML = "❌ هذا الكود مقفل على جهاز هاتف آخر!";
+                return;
+            }
+
+            const nowObj = new Date();
+            const currentDate = nowObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
+            const currentDayName = nowObj.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' });
+            const nowTime = nowObj.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad' });
+
+            if (!empData.deviceId) {
+                await setDoc(doc(db, "employees", code), { deviceId: deviceId }, { merge: true });
+            }
+
+            const qAtt = query(collection(db, "attendance"), where("empCode", "==", code));
+            const snapAtt = await getDocs(qAtt);
+            let targetDoc = null;
+            let existingData = null;
+
+            if (!snapAtt.empty) {
+                let docsList = snapAtt.docs.map(d => ({ id: d.id, ...d.data() }));
+                docsList.sort((a, b) => new Date(b.date) - new Date(a.date));
+                let openRecord = docsList.find(d => !d.exitTime || d.exitTime === "" || d.exitTime === "---");
+                if (openRecord) { targetDoc = openRecord; existingData = openRecord; }
+                else if (docsList.length > 0 && docsList[0].date === currentDate) { targetDoc = snapAtt.docs.find(d => d.id === docsList[0].id); existingData = docsList[0]; }
+            }
+
+            if (action === 'attendance') {
+                if (existingData && existingData.date === currentDate && existingData.time && existingData.time !== "" && existingData.time !== "---") {
+                    msgDiv.style.background = "#fff3cd";
+                    msgDiv.style.color = "#856404";
+                    msgDiv.innerHTML = "⚠️ لقد قمت بتسجيل الحضور مسبقاً اليوم!";
+                    return;
+                }
+                let status = (nowTime > getLimit(empData.type, nowTime)) ? "متأخر" : "حاضر";
+                
+                await addDoc(collection(db, "attendance"), {
+                    empCode: code,
+                    name: empData.name,
+                    status,
+                    time: nowTime,
+                    exitTime: "",
+                    date: currentDate,
+                    day: currentDayName,
+                    reason: "-",
+                    livePhoto: ""
+                });
+
+                msgDiv.style.background = "#e2f0d9";
+                msgDiv.style.color = "#385723";
+                msgDiv.innerHTML = "✅ تم تسجيل الحضور بنجاح تام!";
+            } else {
+                if (!existingData || (existingData.exitTime && existingData.exitTime !== "")) {
+                    msgDiv.style.background = "#fff3cd";
+                    msgDiv.style.color = "#856404";
+                    msgDiv.innerHTML = "⚠️ لا يوجد سجل حضور مفتوح للانصراف!";
+                    return;
+                }
+                await setDoc(doc(db, 'attendance', targetDoc.id), { 
+                    exitTime: nowTime,
+                    exitPhoto: ""
+                }, { merge: true });
+
+                msgDiv.style.background = "#e2f0d9";
+                msgDiv.style.color = "#385723";
+                msgDiv.innerHTML = "✅ تم تسجيل الانصراف بنجاح تام!";
+            }
+
+            setTimeout(() => location.reload(), 1000);
+        } catch (err) {
+            console.error(err);
+            msgDiv.style.background = "#f8d7da";
+            msgDiv.style.color = "#721c24";
+            msgDiv.innerHTML = "❌ خطأ في الاتصال، حاول مرة أخرى.";
+        }
+    };
+</script>
+</body>
+</html>
+ 
