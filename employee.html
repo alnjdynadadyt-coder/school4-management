@@ -8,7 +8,6 @@
         .container { max-width: 500px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         input[type="text"] { padding: 15px; width: 80%; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; text-align: center; }
         
-        /* تصميم زر الكاميرا المرئي والمباشر */
         .camera-box { background: #e8f4fd; border: 2px dashed #007bff; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
         .camera-box label { display: block; font-weight: bold; color: #007bff; margin-bottom: 8px; cursor: pointer; }
         input[type="file"] { font-size: 14px; width: 100%; cursor: pointer; }
@@ -16,7 +15,6 @@
         .btn-reg { padding: 15px; font-size: 16px; color: white; border: none; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 10px; font-weight: bold; }
         #statusMsg { margin-bottom: 20px; font-weight: bold; padding: 10px; border-radius: 5px; }
         
-        /* بطاقة عرض بيانات الموظف */
         .info-card { background: #f8f9fa; border: 1px solid #dcdcdc; border-radius: 10px; padding: 18px; margin-top: 20px; text-align: right; display: none; }
         .info-card h3 { margin-top: 0; color: #007bff; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 18px; }
         .info-row { display: flex; justify-content: space-between; margin: 10px 0; font-size: 15px; border-bottom: 1px dashed #eee; padding-bottom: 5px; }
@@ -32,7 +30,6 @@
     <div id="regArea" style="display:none;">
         <input type="text" id="empCode" placeholder="أدخل كود الموظف">
         
-        <!-- حقل الكاميرا المرئي والمباشر لفتح الكاميرا الأمامية بضغط المستخدم -->
         <div class="camera-box">
             <label for="livePhotoInput">📷 التقط صورة سيلفي حية مطلوبة للتسجيل:</label>
             <input type="file" id="livePhotoInput" accept="image/*" capture="user">
@@ -42,7 +39,6 @@
         <button class="btn-reg" style="background:#6f42c1;" onclick="registerAttendance('exit')">تسجيل الانصراف</button>
     </div>
 
-    <!-- بطاقة عرض البيانات الفورية للموظف -->
     <div id="employeeCard" class="info-card">
         <h3 id="cardEmpName">---</h3>
         <div class="info-row"><span class="info-label">التاريخ:</span><span class="info-value" id="cardDate">---</span></div>
@@ -66,9 +62,8 @@
         appId: "1:157481747196:web:ee4958d9589b8d01464d79",
         measurementId: "G-G89TZ8CC7Y"
     }));
-    const storage = getStorage(app);
+    const storage = getStorage();
 
-    // بصمة الجهاز الفريدة لهذا المتصفح/الهاتف
     let deviceId = localStorage.getItem('school_device_id');
     if (!deviceId) {
         deviceId = 'dev_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -80,29 +75,58 @@
     const SCHOOL_LON = 44.9905462;
     const msgDiv = document.getElementById('statusMsg');
 
-    // التحقق من الموقع الجغرافي مع مهلة زمنية (Timeout) لضمان عدم تعليق الشاشة
-    navigator.geolocation.getCurrentPosition(pos => {
-        const dist = 6371e3 * 2 * Math.atan2(Math.sqrt(Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2), Math.sqrt(1 - (Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2)));
-        
-        if (dist <= 30000) { // النطاق المؤقت للتجربة (30 كم)
-            isLocationVerified = true; 
-            msgDiv.style.background = "#e2f0d9";
-            msgDiv.style.color = "#385723";
-            msgDiv.innerText = "أهلاً بك، أنت ضمن النطاق المسموح. النظام مؤمن."; 
-            document.getElementById('regArea').style.display = "block"; 
-        } else { 
-            msgDiv.style.background = "#f8f9fa";
-            msgDiv.style.color = "#721c24";
-            msgDiv.innerText = "عذراً، أنت خارج نطاق المدرسة (المسافة: " + Math.round(dist) + " متر)."; 
+    // متغير مراقبة لمنع تعليق الـ GPS الأبدي
+    let locationResolved = false;
+
+    // عداد زمني قسري (3 ثوانٍ كحد أقصى للانتظار)
+    setTimeout(() => {
+        if (!locationResolved) {
+            locationResolved = true;
+            console.warn("انان انتهت مهلة الـ GPS القسرية، تم فتح الواجهة.");
+            msgDiv.style.background = "#fff3cd";
+            msgDiv.style.color = "#856404";
+            msgDiv.innerText = "تنبيه: تم تجاوز التحقق التلقائي للموقع، يمكنك التسجيل الآن.";
+            isLocationVerified = true;
+            document.getElementById('regArea').style.display = "block";
         }
-    }, (error) => {
-        console.warn("خطأ في تحديد الموقع: ", error);
-        msgDiv.style.background = "#fff3cd";
-        msgDiv.style.color = "#856404";
-        msgDiv.innerText = "تنبيه: تعذر جلب الموقع بدقة، يرجى تفعيل GPS والإذن للتجربة.";
-        isLocationVerified = true; // تجاوز مؤقت لحل مشكلة التعليق
-        document.getElementById('regArea').style.display = "block";
-    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+    }, 3000);
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            if (locationResolved) return;
+            locationResolved = true;
+            
+            const dist = 6371e3 * 2 * Math.atan2(Math.sqrt(Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2), Math.sqrt(1 - (Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2)));
+            
+            if (dist <= 30000) { 
+                isLocationVerified = true; 
+                msgDiv.style.background = "#e2f0d9";
+                msgDiv.style.color = "#385723";
+                msgDiv.innerText = "أهلاً بك، أنت ضمن النطاق المسموح. النظام مؤمن."; 
+            } else { 
+                msgDiv.style.background = "#f8f9fa";
+                msgDiv.style.color = "#721c24";
+                msgDiv.innerText = "عذراً، أنت خارج نطاق المدرسة (المسافة: " + Math.round(dist) + " متر)."; 
+            }
+            document.getElementById('regArea').style.display = "block";
+        }, (error) => {
+            if (locationResolved) return;
+            locationResolved = true;
+            console.warn("خطأ في تحديد الموقع: ", error);
+            msgDiv.style.background = "#fff3cd";
+            msgDiv.style.color = "#856404";
+            msgDiv.innerText = "تنبيه: تعذر جلب الموقع، يرجى تفعيل الـ GPS.";
+            isLocationVerified = true; 
+            document.getElementById('regArea').style.display = "block";
+        }, { enableHighAccuracy: true, timeout: 2500, maximumAge: 0 });
+    } else {
+        if (!locationResolved) {
+            locationResolved = true;
+            isLocationVerified = true;
+            msgDiv.innerText = "متصفحك لا يدعم تحديد الموقع، تم فتح النظام للتسجيل.";
+            document.getElementById('regArea').style.display = "block";
+        }
+    }
 
     const getLimit = (type, timeInput) => {
         const [h, m] = timeInput.split(':').map(Number);
@@ -130,12 +154,10 @@
         alert("جاري التحقق من بصمة الجهاز ورفع الصورة الحية، لطفا الانتظار...");
 
         try {
-            // 1. التحقق من وجود الموظف
             const empSnap = await getDoc(doc(db, "employees", code));
             if (!empSnap.exists()) { alert("كود الموظف غير صحيح!"); return; }
             const empData = empSnap.data();
 
-            // 2. فحص صارم: هل هذا الهاتف مسجل لموظف آخر؟
             const qDev = query(collection(db, "employees"), where("deviceId", "==", deviceId));
             const devSnap = await getDocs(qDev);
             let ownerEmpCode = null;
@@ -148,13 +170,11 @@
                 return;
             }
 
-            // 3. فحص بصمة الموظف (هل كوده مقفل على هاتف آخر؟)
             if (empData.deviceId && empData.deviceId !== deviceId) {
                 alert("عذراً، هذا الكود مسجل ومقفل على جهاز هاتف آخر! يرجى مراجعة الإدارة لفك القفل أولاً.");
                 return;
             }
 
-            // رفع الصورة إلى Firebase Storage
             const nowObj = new Date();
             const currentDate = nowObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
             const currentDayName = nowObj.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' });
@@ -164,7 +184,6 @@
             const snapshot = await uploadBytes(storageRef, file);
             const livePhotoUrl = await getDownloadURL(snapshot.ref);
 
-            // ربط الكود بهذا الجهاز نهائياً إذا لم يكن مربوطاً
             if (!empData.deviceId) {
                 await setDoc(doc(db, "employees", code), { deviceId: deviceId }, { merge: true });
             }
