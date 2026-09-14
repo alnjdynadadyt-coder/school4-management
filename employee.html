@@ -12,7 +12,7 @@
         input[type="text"] { padding: 14px; width: 85%; margin-bottom: 20px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: 18px; text-align: center; outline: none; transition: 0.3s; }
         input[type="text"]:focus { border-color: #3498db; box-shadow: 0 0 8px rgba(52, 152, 219, 0.2); }
         
-        #statusMsg { margin-bottom: 20px; font-weight: bold; padding: 12px; border-radius: 10px; font-size: 14px; line-height: 1.5; background: #e2f0d9; color: #385723; }
+        #statusMsg { margin-bottom: 20px; font-weight: bold; padding: 12px; border-radius: 10px; font-size: 14px; line-height: 1.5; background: #fff3cd; color: #856404; }
         
         .btn-container { display: flex; flex-direction: column; gap: 15px; margin-top: 15px; }
         .btn-reg { 
@@ -46,9 +46,9 @@
 <body>
 <div class="container">
     <h2>تسجيل الحضور اليومي<br>اعدادية النجدين</h2>
-    <div id="statusMsg">⚡ النظام جاهز وآمن، أدخل الكود وسجل حضورك أو انصرافك.</div>
+    <div id="statusMsg">📍 جاري التحقق من موقعك الجغرافي (GPS)...</div>
     
-    <div id="regArea">
+    <div id="regArea" style="display:none;">
         <input type="text" id="empCode" placeholder="أدخل كود الموظف" autocomplete="off">
 
         <div class="btn-container">
@@ -108,8 +108,32 @@
     }
 
     const msgDiv = document.getElementById('statusMsg');
+    let isLocationVerified = false;
+    const SCHOOL_LAT = 31.7296172;
+    const SCHOOL_LON = 44.9905462;
 
-    // 🛡️ دالة جلب الوقت الموثوق من الخادم حصراً لمنع التلاعب بساعة الهاتف
+    // التحقق من الموقع الجغرافي عند فتح الصفحة
+    navigator.geolocation.getCurrentPosition(pos => {
+        const dist = 6371e3 * 2 * Math.atan2(Math.sqrt(Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2), Math.sqrt(1 - (Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2)));
+        
+        if (dist <= 50) { 
+            isLocationVerified = true; 
+            msgDiv.style.background = "#e2f0d9";
+            msgDiv.style.color = "#385723";
+            msgDiv.innerHTML = "✅ أنت ضمن النطاق الجغرافي للمدرسة. يمكنك التسجيل الآن."; 
+            document.getElementById('regArea').style.display = "block"; 
+        } else { 
+            msgDiv.style.background = "#f8d7da";
+            msgDiv.style.color = "#721c24";
+            msgDiv.innerHTML = "❌ عذراً، أنت خارج نطاق المدرسة الجغرافي (المسافة: " + Math.round(dist) + " متر)."; 
+        }
+    }, () => {
+        msgDiv.style.background = "#f8d7da";
+        msgDiv.style.color = "#721c24";
+        msgDiv.innerHTML = "⚠️ يرجى السماح للمتصفح بالوصول إلى الموقع الجغرافي (GPS).";
+    }, { enableHighAccuracy: true });
+
+    // دالة الوقت الآمن من الخادم
     async function getSecureServerTime() {
         try {
             let response = await fetch(window.location.href, { method: 'HEAD', cache: 'no-store' });
@@ -149,6 +173,11 @@
     };
 
     window.registerAction = async (action) => {
+        if (!isLocationVerified) {
+            alert("❌ لا يمكن التسجيل لأن الموقع الجغرافي غير مؤكد أو أنك خارج النطاق!");
+            return;
+        }
+
         const code = document.getElementById('empCode').value.trim();
         if (!code) {
             msgDiv.style.background = "#f8d7da";
@@ -172,7 +201,7 @@
             }
             const empData = empSnap.data();
 
-            // 🛡️ فحص بصمة الجهاز الصارم لمنع تعدد الأكواد على نفس الهاتف
+            // فحص بصمة الجهاز
             const qDev = query(collection(db, "employees"), where("deviceId", "==", deviceId));
             const devSnap = await getDocs(qDev);
             let ownerEmpCode = null;
@@ -181,7 +210,7 @@
             if (ownerEmpCode) {
                 msgDiv.style.background = "#f8d7da";
                 msgDiv.style.color = "#721c24";
-                msgDiv.innerHTML = "❌ هذا الهاتف مسجل مسبقاً لموظف آخر ولا يمكن استخدام أكثر من كود عليه!";
+                msgDiv.innerHTML = "❌ هذا الهاتف مسجل مسبقاً لموظف آخر!";
                 return;
             }
 
@@ -192,7 +221,6 @@
                 return;
             }
 
-            // جلب الوقت الآمن والموثوق
             const serverTime = await getSecureServerTime();
             const nowTime = serverTime.timeStr;
             const currentDate = serverTime.dateStr;
@@ -219,9 +247,8 @@
                 if (existingData && existingData.date === currentDate && existingData.time && existingData.time !== "" && existingData.time !== "---") {
                     msgDiv.style.background = "#fff3cd";
                     msgDiv.style.color = "#856404";
-                    msgDiv.innerHTML = "⚠️ لقد قمت بتسجيل الحضور مسبقاً اليوم ولا يمكنك تكراره!";
+                    msgDiv.innerHTML = "⚠️ لقد قمت بتسجيل الحضور مسبقاً اليوم!";
                     
-                    // إظهار البطاقة بالسجلات الحالية
                     document.getElementById('cardEmpName').innerText = empData.name;
                     document.getElementById('cardDate').innerText = `${existingData.day || ''} - ${existingData.date}`;
                     document.getElementById('cardTime').innerText = existingData.time;
@@ -249,7 +276,6 @@
                 msgDiv.style.color = "#385723";
                 msgDiv.innerHTML = "✅ تم تسجيل الحضور بنجاح كـ: " + status;
 
-                // عرض البطاقة للموظف
                 document.getElementById('cardEmpName').innerText = empData.name;
                 document.getElementById('cardDate').innerText = `${currentDayName} - ${currentDate}`;
                 document.getElementById('cardTime').innerText = nowTime;
@@ -263,11 +289,10 @@
                 if (!existingData || (existingData.exitTime && existingData.exitTime !== "")) {
                     msgDiv.style.background = "#fff3cd";
                     msgDiv.style.color = "#856404";
-                    msgDiv.innerHTML = "⚠️ لا يوجد سجل حضور مفتوح (يحتاج إلى انصراف) لهذا الكود!";
+                    msgDiv.innerHTML = "⚠️ لا يوجد سجل حضور مفتوح للانصراف!";
                     return;
                 }
 
-                // شرط منع الانصراف قبل الساعة 11:00 صباحاً للمدرسين والإداريين والموظفين
                 if (["مدرس", "إداري", "موظف"].includes(empData.type)) {
                     if (serverTime.totalMinutes < 11 * 60) {
                         msgDiv.style.background = "#f8d7da";
@@ -287,7 +312,6 @@
                 msgDiv.style.color = "#385723";
                 msgDiv.innerHTML = "✅ تم تسجيل الانصراف بنجاح تام!";
 
-                // عرض البطاقة بتفاصيل الانصراف
                 document.getElementById('cardEmpName').innerText = empData.name;
                 document.getElementById('cardDate').innerText = `${existingData.day || ''} - ${existingData.date}`;
                 document.getElementById('cardTime').innerText = existingData.time || "---";
