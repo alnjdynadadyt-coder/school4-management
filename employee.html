@@ -12,7 +12,7 @@
         input[type="text"] { padding: 14px; width: 85%; margin-bottom: 20px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: 18px; text-align: center; outline: none; transition: 0.3s; }
         input[type="text"]:focus { border-color: #3498db; box-shadow: 0 0 8px rgba(52, 152, 219, 0.2); }
         
-        #statusMsg { margin-bottom: 20px; font-weight: bold; padding: 12px; border-radius: 10px; font-size: 14px; line-height: 1.5; }
+        #statusMsg { margin-bottom: 20px; font-weight: bold; padding: 12px; border-radius: 10px; font-size: 14px; line-height: 1.5; background: #e2f0d9; color: #385723; }
         
         .btn-container { display: flex; flex-direction: column; gap: 15px; margin-top: 15px; }
         .btn-reg { 
@@ -41,11 +41,10 @@
 <body>
 <div class="container">
     <h2>تسجيل الحضور اليومي<br>اعدادية النجدين</h2>
-    <div id="statusMsg" style="background: #e2f0d9; color: #385723;">جاري تجهيز النظام...</div>
+    <div id="statusMsg">⚡ النظام جاهز وسريع، أدخل الكود وسجل.</div>
     
-    <div id="regArea" style="display:none;">
+    <div id="regArea">
         <input type="text" id="empCode" placeholder="أدخل كود الموظف" autocomplete="off">
-        
         <input type="file" id="livePhotoInput" accept="image/*" capture="user">
 
         <div class="btn-container">
@@ -81,15 +80,8 @@
         localStorage.setItem('school_device_id', deviceId);
     }
 
-    let isLocationVerified = true; // تفعيل فوري لمنع أي انتظار للموقع
     const msgDiv = document.getElementById('statusMsg');
     let pendingAction = null;
-
-    // فتح واجهة التسجيل فوراً دون انتظار GPS لضمان السرعة المطلقة
-    msgDiv.style.background = "#e2f0d9";
-    msgDiv.style.color = "#385723";
-    msgDiv.innerHTML = "⚡ النظام جاهز وسريع جداً، أدخل كودك وسجل.";
-    document.getElementById('regArea').style.display = "block";
 
     const getLimit = (type, timeInput) => {
         const [h, m] = timeInput.split(':').map(Number);
@@ -112,10 +104,11 @@
         }
 
         pendingAction = action;
+        document.getElementById('livePhotoInput').value = ""; // تفريغ الحقل لضمان عمل الحدث حتى لو اختيرت نفس الصورة
         document.getElementById('livePhotoInput').click();
     };
 
-    // ضغط فائق السرعة وخفيف جداً للصورة
+    // ضغط فائق السرعة
     async function fastCompress(file) {
         return new Promise((resolve) => {
             const reader = new FileReader();
@@ -126,13 +119,13 @@
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
                     let w = img.width, h = img.height;
-                    const max = 500; // أبعاد خفيفة جداً لسرعة الرفع الصاروخية
+                    const max = 400; // تصغير الحجم لأقصى سرعة رفع ممكنة
                     if (w > h && w > max) { h *= max / w; w = max; }
                     else if (h > max) { w *= max / h; h = max; }
                     canvas.width = w; canvas.height = h;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, w, h);
-                    canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.6);
+                    canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.5);
                 };
             };
         });
@@ -150,12 +143,24 @@
         msgDiv.style.color = "#0c5460";
         msgDiv.innerHTML = "🚀 جاري تسجيل الحضور بسرعة فائقة...";
 
+        // مؤشر حماية زمني: إذا علق الاتصال أكثر من 6 ثوانٍ يتم فك التعليق تلقائياً
+        let timeoutTriggered = false;
+        const safetyTimer = setTimeout(() => {
+            timeoutTriggered = true;
+            msgDiv.style.background = "#f8d7da";
+            msgDiv.style.color = "#721c24";
+            msgDiv.innerHTML = "❌ استغرق الاتصال وقتاً طويلاً، يرجى إعادة المحاولة والتأكد من الإنترنت.";
+        }, 6000);
+
         try {
-            // معالجة سريعة جداً للصورة
             const compressedBlob = await fastCompress(rawFile);
+            if (timeoutTriggered) return;
 
             const empSnap = await getDoc(doc(db, "employees", code));
+            if (timeoutTriggered) return;
+
             if (!empSnap.exists()) {
+                clearTimeout(safetyTimer);
                 msgDiv.style.background = "#f8d7da";
                 msgDiv.style.color = "#721c24";
                 msgDiv.innerHTML = "❌ كود الموظف غير صحيح!";
@@ -163,13 +168,15 @@
             }
             const empData = empSnap.data();
 
-            // التحقق من بصمة الجهاز
             const qDev = query(collection(db, "employees"), where("deviceId", "==", deviceId));
             const devSnap = await getDocs(qDev);
+            if (timeoutTriggered) return;
+
             let ownerEmpCode = null;
             devSnap.forEach(d => { if (d.id !== code) ownerEmpCode = d.id; });
 
             if (ownerEmpCode) {
+                clearTimeout(safetyTimer);
                 msgDiv.style.background = "#f8d7da";
                 msgDiv.style.color = "#721c24";
                 msgDiv.innerHTML = "❌ هذا الهاتف مسجل لموظف آخر!";
@@ -177,6 +184,7 @@
             }
 
             if (empData.deviceId && empData.deviceId !== deviceId) {
+                clearTimeout(safetyTimer);
                 msgDiv.style.background = "#f8d7da";
                 msgDiv.style.color = "#721c24";
                 msgDiv.innerHTML = "❌ هذا الكود مقفل على جهاز هاتف آخر!";
@@ -188,9 +196,9 @@
             const currentDayName = nowObj.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' });
             const nowTime = nowObj.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad' });
 
-            // رفع الصورة المضغوطة للسيرفر بسرعة البرق
             const storageRef = ref(storage, `live_photos/${currentDate}_${code}_${Date.now()}.jpg`);
             const snapshot = await uploadBytes(storageRef, compressedBlob);
+            if (timeoutTriggered) return;
             const livePhotoUrl = await getDownloadURL(snapshot.ref);
 
             if (!empData.deviceId) {
@@ -199,6 +207,8 @@
 
             const qAtt = query(collection(db, "attendance"), where("empCode", "==", code));
             const snapAtt = await getDocs(qAtt);
+            if (timeoutTriggered) return;
+
             let targetDoc = null;
             let existingData = null;
 
@@ -212,6 +222,7 @@
 
             if (action === 'attendance') {
                 if (existingData && existingData.date === currentDate && existingData.time && existingData.time !== "" && existingData.time !== "---") {
+                    clearTimeout(safetyTimer);
                     msgDiv.style.background = "#fff3cd";
                     msgDiv.style.color = "#856404";
                     msgDiv.innerHTML = "⚠️ لقد قمت بتسجيل الحضور مسبقاً اليوم!";
@@ -231,11 +242,13 @@
                     livePhoto: livePhotoUrl
                 });
 
+                clearTimeout(safetyTimer);
                 msgDiv.style.background = "#e2f0d9";
                 msgDiv.style.color = "#385723";
                 msgDiv.innerHTML = "✅ تم تسجيل الحضور بنجاح تام!";
             } else {
                 if (!existingData || (existingData.exitTime && existingData.exitTime !== "")) {
+                    clearTimeout(safetyTimer);
                     msgDiv.style.background = "#fff3cd";
                     msgDiv.style.color = "#856404";
                     msgDiv.innerHTML = "⚠️ لا يوجد سجل حضور مفتوح للانصراف!";
@@ -246,6 +259,7 @@
                     exitPhoto: livePhotoUrl
                 }, { merge: true });
 
+                clearTimeout(safetyTimer);
                 msgDiv.style.background = "#e2f0d9";
                 msgDiv.style.color = "#385723";
                 msgDiv.innerHTML = "✅ تم تسجيل الانصراف بنجاح تام!";
@@ -253,6 +267,7 @@
 
             setTimeout(() => location.reload(), 1000);
         } catch (err) {
+            clearTimeout(safetyTimer);
             console.error(err);
             msgDiv.style.background = "#f8d7da";
             msgDiv.style.color = "#721c24";
@@ -262,3 +277,4 @@
 </script>
 </body>
 </html>
+ 
