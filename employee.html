@@ -2,49 +2,63 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تسجيل الحضور - اعدادية النجدين</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f4f7f6; }
-        .container { max-width: 500px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        input[type="text"] { padding: 15px; width: 80%; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; text-align: center; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 15px; background: #eef2f5; margin: 0; }
+        .container { max-width: 480px; margin: auto; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; font-size: 22px; margin-bottom: 15px; }
         
-        .camera-box { background: #e8f4fd; border: 2px dashed #007bff; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
-        .camera-box label { display: block; font-weight: bold; color: #007bff; margin-bottom: 8px; cursor: pointer; }
-        input[type="file"] { font-size: 14px; width: 100%; cursor: pointer; }
+        input[type="text"] { padding: 14px; width: 85%; margin-bottom: 20px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: 18px; text-align: center; outline: none; transition: 0.3s; }
+        input[type="text"]:focus { border-color: #3498db; box-shadow: 0 0 8px rgba(52, 152, 219, 0.2); }
+        
+        #statusMsg { margin-bottom: 20px; font-weight: bold; padding: 12px; border-radius: 10px; font-size: 14px; line-height: 1.5; }
+        
+        /* تصميم الأزرار الجديدة الكبيرة والرائعة */
+        .btn-container { display: flex; flex-direction: column; gap: 15px; margin-top: 15px; }
+        .btn-reg { 
+            padding: 16px 20px; 
+            font-size: 18px; 
+            color: white; 
+            border: none; 
+            border-radius: 14px; 
+            cursor: pointer; 
+            width: 100%; 
+            font-weight: bold; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: all 0.2s ease-in-out;
+        }
+        .btn-reg:active { transform: scale(0.97); }
+        .btn-attendance { background: linear-gradient(135deg, #27ae60, #2ecc71); }
+        .btn-exit { background: linear-gradient(135deg, #8e44ad, #9b59b6); }
 
-        .btn-reg { padding: 15px; font-size: 16px; color: white; border: none; border-radius: 10px; cursor: pointer; width: 100%; margin-top: 10px; font-weight: bold; }
-        #statusMsg { margin-bottom: 20px; font-weight: bold; padding: 10px; border-radius: 5px; }
-        
-        .info-card { background: #f8f9fa; border: 1px solid #dcdcdc; border-radius: 10px; padding: 18px; margin-top: 20px; text-align: right; display: none; }
-        .info-card h3 { margin-top: 0; color: #007bff; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 8px; font-size: 18px; }
-        .info-row { display: flex; justify-content: space-between; margin: 10px 0; font-size: 15px; border-bottom: 1px dashed #eee; padding-bottom: 5px; }
-        .info-label { font-weight: bold; color: #444; }
-        .info-value { color: #111; font-weight: bold; }
+        /* حقل الكاميرا المخفي لتشغيله برمجياً عند ضغط الأزرار */
+        #livePhotoInput { display: none; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h2>تسجيل الحضور اليومي اعدادية النجدين</h2>
-    <div id="statusMsg" style="background: #e2f0d9; color: #385723;">جاري التحقق من موقعك وبصمة الجهاز...</div>
+    <h2>تسجيل الحضور اليومي<br>اعدادية النجدين</h2>
+    <div id="statusMsg" style="background: #e2f0d9; color: #385723;">جاري التحقق من الموقع وبصمة الجهاز...</div>
     
     <div id="regArea" style="display:none;">
-        <input type="text" id="empCode" placeholder="أدخل كود الموظف">
+        <input type="text" id="empCode" placeholder="أدخل كود الموظف التوثيقي" autocomplete="off">
         
-        <div class="camera-box">
-            <label for="livePhotoInput">📷 التقط صورة سيلفي حية مطلوبة للتسجيل:</label>
-            <input type="file" id="livePhotoInput" accept="image/*" capture="user">
+        <!-- حقل الكاميرا المخفي لالتقاط الصورة تلقائياً -->
+        <input type="file" id="livePhotoInput" accept="image/*" capture="user">
+
+        <div class="btn-container">
+            <button class="btn-reg btn-attendance" onclick="startCameraAction('attendance')">
+                <span>🟢</span> تسجيل الحضور
+            </button>
+            <button class="btn-reg btn-exit" onclick="startCameraAction('exit')">
+                <span>🟣</span> تسجيل الانصراف
+            </button>
         </div>
-
-        <button class="btn-reg" style="background:#28a745;" onclick="registerAttendance('attendance')">تسجيل الحضور</button>
-        <button class="btn-reg" style="background:#6f42c1;" onclick="registerAttendance('exit')">تسجيل الانصراف</button>
-    </div>
-
-    <div id="employeeCard" class="info-card">
-        <h3 id="cardEmpName">---</h3>
-        <div class="info-row"><span class="info-label">التاريخ:</span><span class="info-value" id="cardDate">---</span></div>
-        <div class="info-row"><span class="info-label">وقت الحضور:</span><span class="info-value" id="cardTime">---</span></div>
-        <div class="info-row" id="exitRow" style="display: none;"><span class="info-label">وقت الانصراف:</span><span class="info-value" id="cardExit">---</span></div>
-        <div class="info-row"><span class="info-label">الحالة:</span><span class="info-value" id="cardStatus" style="color: #28a745;">---</span></div>
     </div>
 </div>
 
@@ -74,22 +88,20 @@
     const SCHOOL_LAT = 31.7296172;
     const SCHOOL_LON = 44.9905462;
     const msgDiv = document.getElementById('statusMsg');
-
-    // متغير مراقبة لمنع تعليق الـ GPS الأبدي
     let locationResolved = false;
+    let pendingAction = null; // لحفظ نوع العملية (حضور/انصراف) لحين التقاط الصورة
 
-    // عداد زمني قسري (3 ثوانٍ كحد أقصى للانتظار)
+    // مهلة زمنية قسريّة للـ GPS لتجنب أي تعليق
     setTimeout(() => {
         if (!locationResolved) {
             locationResolved = true;
-            console.warn("انان انتهت مهلة الـ GPS القسرية، تم فتح الواجهة.");
             msgDiv.style.background = "#fff3cd";
             msgDiv.style.color = "#856404";
-            msgDiv.innerText = "تنبيه: تم تجاوز التحقق التلقائي للموقع، يمكنك التسجيل الآن.";
+            msgDiv.innerHTML = "⚠️ تم تجاوز التحقق التلقائي للموقع، النظام جاهز.";
             isLocationVerified = true;
             document.getElementById('regArea').style.display = "block";
         }
-    }, 3000);
+    }, 2500);
 
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(pos => {
@@ -102,28 +114,27 @@
                 isLocationVerified = true; 
                 msgDiv.style.background = "#e2f0d9";
                 msgDiv.style.color = "#385723";
-                msgDiv.innerText = "أهلاً بك، أنت ضمن النطاق المسموح. النظام مؤمن."; 
+                msgDiv.innerHTML = "✅ أهلاً بك، أنت ضمن النطاق المسموح. النظام مؤمن."; 
             } else { 
-                msgDiv.style.background = "#f8f9fa";
+                msgDiv.style.background = "#f8d7da";
                 msgDiv.style.color = "#721c24";
-                msgDiv.innerText = "عذراً، أنت خارج نطاق المدرسة (المسافة: " + Math.round(dist) + " متر)."; 
+                msgDiv.innerHTML = "❌ عذراً، أنت خارج نطاق المدرسة (المسافة: " + Math.round(dist) + " متر)."; 
             }
             document.getElementById('regArea').style.display = "block";
         }, (error) => {
             if (locationResolved) return;
             locationResolved = true;
-            console.warn("خطأ في تحديد الموقع: ", error);
             msgDiv.style.background = "#fff3cd";
             msgDiv.style.color = "#856404";
-            msgDiv.innerText = "تنبيه: تعذر جلب الموقع، يرجى تفعيل الـ GPS.";
+            msgDiv.innerHTML = "⚠️ تعذر جلب الموقع بدقة، تم تفعيل النظام للتسجيل.";
             isLocationVerified = true; 
             document.getElementById('regArea').style.display = "block";
-        }, { enableHighAccuracy: true, timeout: 2500, maximumAge: 0 });
+        }, { enableHighAccuracy: true, timeout: 2000, maximumAge: 0 });
     } else {
         if (!locationResolved) {
             locationResolved = true;
             isLocationVerified = true;
-            msgDiv.innerText = "متصفحك لا يدعم تحديد الموقع، تم فتح النظام للتسجيل.";
+            msgDiv.innerHTML = "متصفحك لا يدعم تحديد الموقع.";
             document.getElementById('regArea').style.display = "block";
         }
     }
@@ -138,40 +149,107 @@
         return "08:10";
     };
 
-    window.registerAttendance = async (action) => {
-        if (!isLocationVerified) return alert("الموقع غير مؤكد أو أنك خارج النطاق المسموح!");
-        
-        const code = document.getElementById('empCode').value.trim();
-        if (!code) return alert("يرجى إدخال كود الموظف!");
-
-        const photoInput = document.getElementById('livePhotoInput');
-        if (!photoInput.files || photoInput.files.length === 0) {
-            alert("عذراً، يجب التقاط صورة سيلفي حية للكاميرا لإتمام عملية التسجيل!");
+    // 1. عند الضغط على زر الحضور أو الانصراف، نتحقق من الكود أولاً ثم نفتح الكاميرا فوراً
+    window.startCameraAction = (action) => {
+        if (!isLocationVerified) {
+            msgDiv.innerHTML = "❌ الموقع غير مؤكد أو أنك خارج النطاق!";
             return;
         }
-        const file = photoInput.files[0];
+        
+        const code = document.getElementById('empCode').value.trim();
+        if (!code) {
+            msgDiv.style.background = "#f8d7da";
+            msgDiv.style.color = "#721c24";
+            msgDiv.innerHTML = "⚠️ يرجى كتابة كود الموظف أولاً!";
+            document.getElementById('empCode').focus();
+            return;
+        }
 
-        alert("جاري التحقق من بصمة الجهاز ورفع الصورة الحية، لطفا الانتظار...");
+        pendingAction = action;
+        // فتح الكاميرا الأمامية فوراً برمجيًا
+        document.getElementById('livePhotoInput').click();
+    };
+
+    // 2. دالة لضغط الصور وتصغير حجمها لرفع أسرع وبدون استهلاك للبيانات
+    async function compressImage(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    // تصغير الأبعاد القصوى إلى 800 بكسل للحفاظ على الوضوح وتخفيف الحجم
+                    const maxDim = 800;
+                    if (width > height && width > maxDim) {
+                        height *= maxDim / width;
+                        width = maxDim;
+                    } else if (height > maxDim) {
+                        width *= maxDim / height;
+                        height = maxDim;
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // تحويل الصورة إلى صيغة JPEG بجودة 0.7 (ممتازة وخفيفة جداً)
+                    canvas.toBlob((blob) => {
+                        resolve(blob);
+                    }, 'image/jpeg', 0.7);
+                };
+            };
+        });
+    }
+
+    // 3. التقاط الصورة وإتمام عملية التسجيل تلقائياً بعد التصوير
+    document.getElementById('livePhotoInput').addEventListener('change', async (e) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        
+        const rawFile = files[0];
+        const code = document.getElementById('empCode').value.trim();
+        const action = pendingAction;
+
+        msgDiv.style.background = "#d1ecf1";
+        msgDiv.style.color = "#0c5460";
+        msgDiv.innerHTML = "⏳ جاري ضغط الصورة ومعالجة البيانات، يجدر الانتظار...";
 
         try {
+            // ضغط الصورة
+            const compressedBlob = await compressImage(rawFile);
+
             const empSnap = await getDoc(doc(db, "employees", code));
-            if (!empSnap.exists()) { alert("كود الموظف غير صحيح!"); return; }
+            if (!empSnap.exists()) {
+                msgDiv.style.background = "#f8d7da";
+                msgDiv.style.color = "#721c24";
+                msgDiv.innerHTML = "❌ كود الموظف غير صحيح!";
+                return;
+            }
             const empData = empSnap.data();
 
+            // فحص بصمة الجهاز
             const qDev = query(collection(db, "employees"), where("deviceId", "==", deviceId));
             const devSnap = await getDocs(qDev);
             let ownerEmpCode = null;
-            devSnap.forEach(d => {
-                if (d.id !== code) ownerEmpCode = d.id;
-            });
+            devSnap.forEach(d => { if (d.id !== code) ownerEmpCode = d.id; });
 
             if (ownerEmpCode) {
-                alert("عذراً، هذا الهاتف مسجل بالفعل لموظف آخر (الكود: " + ownerEmpCode + ") ولا يمكن استخدامه لتسجيل كود إضافي!");
+                msgDiv.style.background = "#f8d7da";
+                msgDiv.style.color = "#721c24";
+                msgDiv.innerHTML = "❌ هذا الهاتف مسجل لموظف آخر (" + ownerEmpCode + ")";
                 return;
             }
 
             if (empData.deviceId && empData.deviceId !== deviceId) {
-                alert("عذراً، هذا الكود مسجل ومقفل على جهاز هاتف آخر! يرجى مراجعة الإدارة لفك القفل أولاً.");
+                msgDiv.style.background = "#f8d7da";
+                msgDiv.style.color = "#721c24";
+                msgDiv.innerHTML = "❌ هذا الكود مقفل على جهاز هاتف آخر!";
                 return;
             }
 
@@ -180,8 +258,9 @@
             const currentDayName = nowObj.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' });
             const nowTime = nowObj.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad' });
 
+            // رفع الصورة المضغوطة إلى سرفر التخزين
             const storageRef = ref(storage, `live_photos/${currentDate}_${code}_${Date.now()}.jpg`);
-            const snapshot = await uploadBytes(storageRef, file);
+            const snapshot = await uploadBytes(storageRef, compressedBlob);
             const livePhotoUrl = await getDownloadURL(snapshot.ref);
 
             if (!empData.deviceId) {
@@ -203,7 +282,9 @@
 
             if (action === 'attendance') {
                 if (existingData && existingData.date === currentDate && existingData.time && existingData.time !== "" && existingData.time !== "---") {
-                    alert("لقد قمت بتسجيل الحضور مسبقاً لهذا اليوم ولا يمكنك تكراره!");
+                    msgDiv.style.background = "#fff3cd";
+                    msgDiv.style.color = "#856404";
+                    msgDiv.innerHTML = "⚠️ لقد قمت بتسجيل الحضور مسبقاً لهذا اليوم!";
                     return;
                 }
                 let status = (nowTime > getLimit(empData.type, nowTime)) ? "متأخر" : "حاضر";
@@ -220,10 +301,14 @@
                     livePhoto: livePhotoUrl
                 });
 
-                alert("تم تسجيل الحضور بنجاح مع الصورة الحية وبصمة الجهاز!");
+                msgDiv.style.background = "#e2f0d9";
+                msgDiv.style.color = "#385723";
+                msgDiv.innerHTML = "🎉 تم تسجيل الحضور بنجاح!";
             } else {
                 if (!existingData || (existingData.exitTime && existingData.exitTime !== "")) {
-                    alert("لا يوجد سجل حضور مفتوح (يحتاج إلى انصراف) لهذا الكود!");
+                    msgDiv.style.background = "#fff3cd";
+                    msgDiv.style.color = "#856404";
+                    msgDiv.innerHTML = "⚠️ لا يوجد سجل حضور مفتوح للانصراف!";
                     return;
                 }
                 await setDoc(doc(db, 'attendance', targetDoc.id), { 
@@ -231,15 +316,19 @@
                     exitPhoto: livePhotoUrl
                 }, { merge: true });
 
-                alert("تم تسجيل الانصراف بنجاح مع الصورة الحية!");
+                msgDiv.style.background = "#e2f0d9";
+                msgDiv.style.color = "#385723";
+                msgDiv.innerHTML = "🎉 تم تسجيل الانصراف بنجاح!";
             }
 
-            location.reload();
+            setTimeout(() => location.reload(), 1500);
         } catch (err) {
             console.error(err);
-            alert("حدث خطأ أثناء الاتصال بقاعدة البيانات، تأكد من الإنترنت.");
+            msgDiv.style.background = "#f8d7da";
+            msgDiv.style.color = "#721c24";
+            msgDiv.innerHTML = "❌ حدث خطأ في الاتصال، يجدر التحقق من الإنترنت.";
         }
-    };
+    });
 </script>
 </body>
 </html>
