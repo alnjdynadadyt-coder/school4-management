@@ -14,7 +14,7 @@
         
         #statusMsg { margin-bottom: 20px; font-weight: bold; padding: 12px; border-radius: 10px; font-size: 14px; line-height: 1.5; background: #e2f0d9; color: #385723; }
         
-        /* تصميم بطاقة تفاصيل الموظف الجديدة والأنيقة */
+        /* تصميم بطاقة تفاصيل الموظف */
         .info-card {
             background: #f8f9fa;
             border: 2px solid #e9ecef;
@@ -200,7 +200,6 @@
                     msgDiv.style.color = "#856404";
                     msgDiv.innerHTML = "⚠️ تنبيه: لقد قمت بتسجيل الحضور مسبقاً اليوم!";
                     
-                    // تعبئة البطاقة بالبيانات الموجودة مسبقاً
                     document.getElementById('cardName').innerText = empData.name;
                     let badgeClass = existingData.status === "حاضر" ? "bg-success-custom" : "bg-warning-custom";
                     document.getElementById('cardStatus').innerHTML = `<span class="badge-status ${badgeClass}">${existingData.status}</span>`;
@@ -229,7 +228,6 @@
                 msgDiv.style.color = "#385723";
                 msgDiv.innerHTML = "✅ تم تسجيل الحضور بنجاح تام!";
 
-                // عرض بطاقة الحضور الجديدة
                 document.getElementById('cardName').innerText = empData.name;
                 let badgeClass = status === "حاضر" ? "bg-success-custom" : "bg-warning-custom";
                 document.getElementById('cardStatus').innerHTML = `<span class="badge-status ${badgeClass}">${status}</span>`;
@@ -239,6 +237,18 @@
                 empCard.style.display = "block";
 
             } else {
+                // 🛑 شرط منع تسجيل الانصراف قبل الساعة 11:00 صباحاً
+                const [curH, curM] = nowTime.split(':').map(Number);
+                const curTotalMinutes = curH * 60 + curM;
+                const minExitMinutes = 11 * 60; // الساعة 11:00 صباحاً
+
+                if (curTotalMinutes < minExitMinutes) {
+                    msgDiv.style.background = "#f8d7da";
+                    msgDiv.style.color = "#721c24";
+                    msgDiv.innerHTML = "❌ عذراً، لا يمكن تسجيل الانصراف قبل الساعة 11:00 صباحاً!";
+                    return;
+                }
+
                 if (!existingData || (existingData.exitTime && existingData.exitTime !== "")) {
                     msgDiv.style.background = "#fff3cd";
                     msgDiv.style.color = "#856404";
@@ -255,7 +265,6 @@
                 msgDiv.style.color = "#385723";
                 msgDiv.innerHTML = "✅ تم تسجيل الانصراف بنجاح تام!";
 
-                // عرض بطاقة الانصراف
                 document.getElementById('cardName').innerText = empData.name;
                 let badgeClass = existingData.status === "حاضر" ? "bg-success-custom" : "bg-warning-custom";
                 document.getElementById('cardStatus').innerHTML = `<span class="badge-status ${badgeClass}">${existingData.status}</span>`;
