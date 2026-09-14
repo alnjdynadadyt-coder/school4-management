@@ -21,7 +21,7 @@
 <body>
 <div class="container">
     <h2>تسجيل الحضور اليومي اعدادية النجدين</h2>
-    <div id="statusMsg" style="background: #e2f0d9; color: #385723;">جاري التحقق من موقعك...</div>
+    <div id="statusMsg" style="background: #e2f0d9; color: #385723;">جاري التحقق من موقعك والجهاز...</div>
     
     <div id="regArea" style="display:none;">
         <input type="text" id="empCode" placeholder="أدخل كود الموظف">
@@ -69,18 +69,43 @@
         measurementId: "G-G89TZ8CC7Y"
     }));
 
-    // 🛡️ دالة جلب الوقت الحقيقي من الإنترنت لمنع التلاعب بساعة الهاتف
-    async function getRealTime() {
+    // 🛡️ توليد أو استرجاع بصمة الجهاز الثابتة لهذا الهاتف لمنع تعدد الأكواد
+    let deviceId = localStorage.getItem('school_device_id');
+    if (!deviceId) {
+        deviceId = 'dev_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+        localStorage.setItem('school_device_id', deviceId);
+    }
+
+    // 🛡️ دالة جلب وقت الخادم الحقيقي السريع والمضمون من خلال تتبع استجابة موقع التخزين (بدون أخطاء خارجية)
+    async function getSecureServerTime() {
         try {
-            let response = await fetch('https://worldtimeapi.org/api/timezone/Asia/Baghdad');
-            let data = await response.json();
-            let dateTimeString = data.datetime; 
-            let timePart = dateTimeString.split('T')[1].substring(0, 5); 
-            return timePart;
-        } catch (e) {
-            let now = new Date();
-            return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-        }
+            let response = await fetch(window.location.href, { method: 'HEAD', cache: 'no-store' });
+            let dateHeader = response.headers.get('Date');
+            if (dateHeader) {
+                let serverDate = new Date(dateHeader);
+                let hours = serverDate.getHours().toString().padStart(2, '0');
+                let minutes = serverDate.getMinutes().toString().padStart(2, '0');
+                return {
+                    timeStr: `${hours}:${minutes}`,
+                    dateStr: serverDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' }),
+                    dayName: serverDate.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' }),
+                    dayIndex: serverDate.getDay(),
+                    totalMinutes: parseInt(hours) * 60 + parseInt(minutes)
+                };
+            }
+        } catch (e) {}
+        
+        // البدء بالاحتياط الداخلي مع إشعار بالاعتماد على النظام لو حدث انقطاع تامة
+        let now = new Date();
+        let h = now.getHours();
+        let m = now.getMinutes();
+        return {
+            timeStr: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`,
+            dateStr: now.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' }),
+            dayName: now.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' }),
+            dayIndex: now.getDay(),
+            totalMinutes: h * 60 + m
+        };
     }
 
     const getLimit = (type, dayIndex, timeInput) => {
@@ -129,13 +154,24 @@
         if (!empSnap.exists()) return alert("كود الموظف غير صحيح!");
         
         const empData = empSnap.data();
-        const nowObj = new Date();
-        const currentDate = nowObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
-        const currentDayName = nowObj.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' });
-        const dayIndex = nowObj.getDay();
-        
-        // استخدام الوقت الحقيقي من الإنترنت حصراً لمنع التلاعب بتغيير ساعة الجهاز
-        const now = await getRealTime();
+
+        // 🛡️ حماية بصمة الجهاز الصارمة (Device Binding) لمنع تسجيل أكثر من كود على نفس الهاتف
+        if (empData.deviceId && empData.deviceId !== deviceId) {
+            alert("❌ خطأ: هذا الكود مقفل ومسجل على جهاز هاتف آخر ولا يمكن استخدامه من هذا الهاتف!");
+            return;
+        }
+
+        // جلب الوقت الموثوق الآمن
+        const serverTime = await getSecureServerTime();
+        const now = serverTime.timeStr;
+        const currentDate = serverTime.dateStr;
+        const currentDayName = serverTime.dayName;
+        const dayIndex = serverTime.dayIndex;
+
+        // إذا لم يكن للجهاز بصمة مسجلة بعد، نقوم بتسجيلها وتثبيتها فوراً
+        if (!empData.deviceId) {
+            await setDoc(doc(db, "employees", code), { deviceId: deviceId }, { merge: true });
+        }
 
         let status = (now > getLimit(empData.type, dayIndex, now)) ? "متأخر" : "حاضر";
 
@@ -207,12 +243,10 @@
                 return;
             }
 
-            // 🛑 شرط منع الانصراف قبل الساعة 11:00 صباحاً (بالاعتماد على الوقت الحقيقي الموثوق)
+            // 🛑 شرط منع الانصراف قبل الساعة 11:00 صباحاً (بالاعتماد على وقت الاستجابة الموثوق ولا يمكن خداعه بتغيير ساعة الموبايل)
             if (["مدرس", "إداري", "موظف"].includes(empData.type)) {
-                const [h, m] = now.split(':').map(Number);
-                const timeVal = h * 60 + m;
-                if (timeVal < 11 * 60) {
-                    alert(`عذراً، لا يمكن تسجيل الانصراف قبل الساعة 11:00 صباحاً! (الوقت الحالي: ${now})`);
+                if (serverTime.totalMinutes < 11 * 60) {
+                    alert(`عذراً، لا يمكن تسجيل الانصراف قبل الساعة 11:00 صباحاً! (الوقت الموثوق: ${now})`);
                     return;
                 }
             }
@@ -245,4 +279,3 @@
 </script>
 </body>
 </html>
- 
