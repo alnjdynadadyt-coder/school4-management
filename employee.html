@@ -294,11 +294,11 @@
                 }
 
                 if (["مدرس", "إداري", "موظف"].includes(empData.type)) {
-                    if (serverTime.totalMinutes < 11 * 60) {
-                        msgDiv.style.background = "#f8d7da";
-                        msgDiv.style.color = "#721c24";
-                        msgDiv.innerHTML = `❌ عذراً، لا يمكن تسجيل الانصراف قبل الساعة 11:00 صباحاً! (الوقت الحالي: ${nowTime})`;
-                        return;
+    if (serverTime.totalMinutes < (10 * 60 + 30)) {
+        msgDiv.style.background = "#f8d7da";
+        msgDiv.style.color = "#721c24";
+        msgDiv.innerHTML = `❌ عذراً، لا يمكن تسجيل الانصراف قبل الساعة 10:30 صباحاً! (الوقت الحالي: ${nowTime})`;
+        return;
                     }
                 }
 
