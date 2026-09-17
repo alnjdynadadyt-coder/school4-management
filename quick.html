@@ -183,12 +183,13 @@
         } else if (action === 'exit') {
             if (snap.empty) { alert("لم يتم تسجيل الحضور لهذا التاريخ بعد!"); return; }
             
-            if (["مدرس", "إداري", "موظف"].includes(empData.type)) {
-                    if (serverTime.totalMinutes < 11 * 60) {
-                        msgDiv.style.background = "#f8d7da";
-                        msgDiv.style.color = "#721c24";
-                        msgDiv.innerHTML = `❌ عذراً، لا يمكن تسجيل الانصراف قبل الساعة 11:00 صباحاً! (الوقت الحالي: ${nowTime})`;
-                        return;
+            if (["مدرس", "إداري", "موظف"].includes(type) && selectedDateStr === todayStr) {
+                const [h, m] = timeInput.split(':').map(Number);
+                const timeVal = h * 60 + m;
+                // تم تعديل الشرط هنا ليصبح 10:30 صباحاً (10 * 60 + 30 = 630 دقيقة) بدلاً من 11:00
+                if (timeVal < (10 * 60 + 30)) {
+                    alert("عذراً، لا يمكن تسجيل الانصراف قبل الساعة 10:30 صباحاً لهذه الفئة!");
+                    return;
                 }
             }
 
