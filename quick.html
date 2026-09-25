@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <title>التسجيل السريع - اعدادية النجدين</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
-        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .search-box { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background: #eef2f3; margin: 0; }
+        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .search-box { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 15px; border: 2px solid #ddd; border-radius: 8px; box-sizing: border-box; outline: none; }
+        .search-box:focus { border-color: #28a745; }
         
         .date-container { background: #e2f0d9; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 15px; border: 1px solid #b7e1cd; display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap; }
         .date-container span { font-weight: bold; color: #385723; font-size: 16px; }
@@ -18,25 +19,16 @@
 
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
-        th { background-color: #28a745; color: white; }
+        th { background-color: #28a745; color: white; font-size: 15px; }
         
-        .btn-quick { background: #28a745; color: white; padding: 8px 10px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
-        .btn-exit { background: #6f42c1; color: white; padding: 8px 10px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .btn-quick { background: #27ae60; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .btn-exit { background: #8e44ad; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
         .btn-excused { background: #17a2b8; color: white; padding: 8px 10px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
         .btn-absent { background: #dc3545; color: white; padding: 8px 10px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
         .btn-seconded { background: #fd7e14; color: white; padding: 8px 10px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
         .btn-view-img { background: #ffc107; color: #333; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; font-size: 12px; margin-top: 5px; display: inline-block; text-decoration: none; }
 
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
-
-        /* نافذة الكاميرا للتحقق أو التقاط البصمة الأولى */
-        .camera-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 3000; justify-content: center; align-items: center; }
-        .camera-modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-        .camera-modal-content video { width: 100%; max-height: 260px; border-radius: 8px; background: #000; object-fit: cover; }
-        .cam-btn { background: #28a745; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; width: 100%; }
-        .cam-switch-btn { background: #ffc107; color: #333; border: none; padding: 8px 15px; font-size: 14px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 6px; width: 100%; }
-        .cam-retry-btn { background: #17a2b8; color: white; border: none; padding: 8px 15px; font-size: 14px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 6px; width: 100%; }
-        .cam-cancel-btn { background: #dc3545; color: white; border: none; padding: 8px 20px; font-size: 14px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 6px; width: 100%; }
 
         /* نافذة اختيار طريقة إدخال الإجازة */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
@@ -83,19 +75,9 @@
     </table>
 </div>
 
-<!-- نافذة التحقق والكاميرا -->
-<div id="faceVerificationModal" class="camera-modal-overlay">
-    <div class="camera-modal-content">
-        <h3 id="camModalTitle" style="color: #28a745; margin-top:0;">التحقق من بصمة الوجه</h3>
-        <p id="camEmpTarget" style="font-weight: bold; color: #555; margin-bottom: 8px;"></p>
-        <video id="verificationVideo" autoplay playsinline muted></video>
-        <p id="camStatusText" style="font-size: 12px; color: #666; margin-top: 6px;">يرجى النظر المباشر للكاميرا وثبات الوجه...</p>
-        <button class="cam-btn" id="confirmVerificationBtn">التقاط والتحقق</button>
-        <button class="cam-switch-btn" id="switchCameraBtn">🔄 تبديل الكاميرا (أمامية/خلفية)</button>
-        <button class="cam-retry-btn" id="retryCameraBtn">🔄 إعادة تشغيل الكاميرا</button>
-        <button class="cam-cancel-btn" id="cancelVerificationBtn">إلغاء</button>
-    </div>
-</div>
+<!-- عناصر الكاميرا المخفية للتقاط الصورة السريعة وبصمة التحقق -->
+<video id="webcamVideo" autoplay playsinline style="display:none;"></video>
+<canvas id="snapshotCanvas" style="display:none;"></canvas>
 
 <!-- نافذة اختيار طريقة إدخال الإجازة -->
 <div id="leaveModal" class="modal-overlay">
@@ -118,7 +100,6 @@
 </div>
 
 <input type="file" id="leaveImageInput" accept="image/*" style="display: none;" onchange="handleImageSelected(this)">
-<canvas id="verificationCanvas" style="display:none;"></canvas>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
@@ -149,60 +130,66 @@
 
     let selectedDateStr = todayStr;
     let selectedDayNameStr = "";
-    let mediaStream = null;
-    let useFrontCamera = true;
 
-    const verificationVideo = document.getElementById('verificationVideo');
+    // تشغيل الكاميرا الأمامية بصمت في الخلفية لتكون جاهزة للتصوير الفوري
+    const videoElement = document.getElementById('webcamVideo');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+        .then(stream => { videoElement.srcObject = stream; })
+        .catch(err => { console.warn("تعذر تشغيل الكاميرا تلقائياً:", err); });
 
-    async function startCamera() {
-        if (mediaStream) {
-            mediaStream.getTracks().forEach(track => track.stop());
+    // دوال خوارزمية بصمة الصورة المطورة والعميقة
+    function generateImageHash(canvas) {
+        const size = 24;
+        const smallCanvas = document.createElement('canvas');
+        smallCanvas.width = size;
+        smallCanvas.height = size;
+        const smallCtx = smallCanvas.getContext('2d');
+        smallCtx.drawImage(canvas, 0, 0, size, size);
+        const imgData = smallCtx.getImageData(0, 0, size, size).data;
+        
+        let grayValues = [];
+        let sum = 0;
+        
+        for (let i = 0; i < imgData.length; i += 4) {
+            let gray = (imgData[i] * 0.299) + (imgData[i+1] * 0.587) + (imgData[i+2] * 0.114);
+            sum += gray;
+            grayValues.push(gray);
         }
         
-        try {
-            const constraints = { 
-                video: { 
-                    facingMode: useFrontCamera ? "user" : "environment", 
-                    width: { ideal: 640 }, 
-                    height: { ideal: 480 } 
-                }, 
-                audio: false 
-            };
-            
-            mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-            verificationVideo.srcObject = mediaStream;
-            await verificationVideo.play();
-            document.getElementById('camStatusText').innerText = useFrontCamera ? "الكاميرا الأمامية تعمل بنجاح." : "الكاميرا الخلفية تعمل بنجاح.";
-        } catch (err1) {
-            try {
-                mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                verificationVideo.srcObject = mediaStream;
-                await verificationVideo.play();
-                document.getElementById('camStatusText').innerText = "تم تشغيل الكاميرا بنجاح.";
-            } catch (err2) {
-                document.getElementById('camStatusText').innerText = "❌ تعذر تشغيل الكاميرا. يرجى السماح بالإذن من إعدادات المتصفح.";
-                alert("تعذر الوصول إلى كاميرا الجهاز. تأكد من منح المتصفح صلاحية استخدام الكاميرا.");
-            }
+        let mean = sum / grayValues.length;
+        let hash = [];
+        for (let i = 0; i < grayValues.length; i++) {
+            hash.push(grayValues[i] >= mean ? 1 : 0);
         }
+        return hash.join('');
     }
 
-    function stopCamera() {
-        if (mediaStream) {
-            mediaStream.getTracks().forEach(track => track.stop());
-            mediaStream = null;
+    function compareImageHashes(hash1, hash2) {
+        if (!hash1 || !hash2 || hash1.length !== hash2.length) return 0;
+        let matchingBits = 0;
+        for (let i = 0; i < hash1.length; i++) {
+            if (hash1[i] === hash2[i]) matchingBits++;
         }
-        verificationVideo.srcObject = null;
+        return (matchingBits / hash1.length) * 100;
     }
 
-    window.switchCameraMode = () => {
-        useFrontCamera = !useFrontCamera;
-        startCamera();
-    };
+    function captureFaceData() {
+        const canvas = document.getElementById('snapshotCanvas');
+        canvas.width = 150;
+        canvas.height = 150;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        
+        return {
+            base64: canvas.toDataURL('image/jpeg', 0.6),
+            hash: generateImageHash(canvas)
+        };
+    }
 
     function updateDateDisplay(dateString) {
         const [year, month, day] = dateString.split('-').map(Number);
         const d = new Date(year, month - 1, day);
-        selectedDayNameStr = d.toLocaleDateString('ar-EG', { weekday: 'long' });
+        selectedDayNameStr = d.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' });
         document.getElementById('selectedDayName').innerText = `📅 اليوم: ${selectedDayNameStr}`;
     }
 
@@ -229,52 +216,6 @@
     let activeEmpForLeave = null;
     let selectedLeaveMethod = null;
     let attendanceMap = {};
-    let pendingActionData = null;
-
-    function generateAdvancedFaceHash(canvas) {
-        const size = 32;
-        const smallCanvas = document.createElement('canvas');
-        smallCanvas.width = size;
-        smallCanvas.height = size;
-        const smallCtx = smallCanvas.getContext('2d');
-        smallCtx.drawImage(canvas, 0, 0, size, size);
-        const imgData = smallCtx.getImageData(0, 0, size, size).data;
-        
-        let grayValues = [];
-        let sum = 0;
-        
-        for (let i = 0; i < imgData.length; i += 4) {
-            let gray = (imgData[i] * 0.299) + (imgData[i+1] * 0.587) + (imgData[i+2] * 0.114);
-            sum += gray;
-            grayValues.push(gray);
-        }
-        
-        let mean = sum / grayValues.length;
-        
-        let variance = 0;
-        for (let i = 0; i < grayValues.length; i++) {
-            variance += Math.pow(grayValues[i] - mean, 2);
-        }
-        let stdDev = Math.sqrt(variance / grayValues.length);
-        if (stdDev < 10) {
-            return null;
-        }
-
-        let hash = [];
-        for (let i = 0; i < grayValues.length; i++) {
-            hash.push(grayValues[i] >= mean ? 1 : 0);
-        }
-        return hash.join('');
-    }
-
-    function compareImageHashes(hash1, hash2) {
-        if (!hash1 || !hash2 || hash1.length !== hash2.length) return 0;
-        let matchingBits = 0;
-        for (let i = 0; i < hash1.length; i++) {
-            if (hash1[i] === hash2[i]) matchingBits++;
-        }
-        return (matchingBits / hash1.length) * 100;
-    }
 
     window.quickAction = async (code, name, type, action) => {
         const timeInput = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad'});
@@ -288,9 +229,9 @@
         const snap = await getDocs(q);
 
         if (action === 'attendance') {
-            if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا التاريخ!"); return; }
+            if (!snap.empty) { alert(`الموظف (${name}) مسجل بالفعل لهذا التاريخ!`); return; }
         } else if (action === 'exit') {
-            if (snap.empty) { alert("لم يتم تسجيل الحضور لهذا التاريخ بعد!"); return; }
+            if (snap.empty) { alert(`لم يتم تسجيل الحضور للموظف (${name}) لهذا التاريخ بعد!`); return; }
             if (["مدرس", "إداري", "موظف"].includes(type) && selectedDateStr === todayStr) {
                 const [h, m] = timeInput.split(':').map(Number);
                 const timeVal = h * 60 + m;
@@ -301,12 +242,66 @@
             }
         }
 
+        // إذا كان الإجراء حضور أو انصراف، نقوم بالتحقق الفوري من الوجه عبر الكاميرا المخفية تماماً مثل التسجيل الخارجي
         if (action === 'attendance' || action === 'exit') {
-            pendingActionData = { code: String(code), name, type, action, timeInput };
-            document.getElementById('camModalTitle').innerText = action === 'attendance' ? "التحقق للـحضور" : "التحقق للـانصراف";
-            document.getElementById('camEmpTarget').innerText = `الموظف: ${name}`;
-            document.getElementById('faceVerificationModal').style.display = 'flex';
-            startCamera();
+            try {
+                const empDocRef = doc(db, "employees", code);
+                const empSnap = await getDoc(empDocRef);
+
+                if (!empSnap.exists()) {
+                    alert("كود الموظف غير موجود في قاعدة بيانات الموظفين!");
+                    return;
+                }
+
+                const empData = empSnap.data();
+                const currentCapture = captureFaceData();
+
+                // إذا لم يكن للموظف بصمة وجه مسجلة من قبل، يتم تسجيلها تلقائياً لأول مرة
+                if (!empData.imageHash || empData.imageHash.trim() === "") {
+                    await setDoc(empDocRef, { 
+                        referenceFace: currentCapture.base64,
+                        imageHash: currentCapture.hash 
+                    }, { merge: true });
+                    alert(`✨ تم التقاط وتسجيل بصمة الوجه للموظف (${name}) بنجاح لأول مرة!`);
+                } else {
+                    const similarity = compareImageHashes(empData.imageHash, currentCapture.hash);
+                    console.log("نسبة المطابقة الذكية:", similarity);
+
+                    if (similarity < 82) {
+                        alert(`❌ فشل التحقق! وجه الشخص الحالي لا يتطابق بدقة مع الموظف (${name}) [نسبة المطابقة: ${similarity.toFixed(1)}%].`);
+                        return;
+                    }
+                }
+
+                if (action === 'attendance') {
+                    let status = (timeInput > getLimit(type, timeInput)) ? "متأخر" : "حاضر";
+                    await addDoc(collection(db, "attendance"), { 
+                        empCode: String(code), 
+                        name: name, 
+                        status, 
+                        time: timeInput, 
+                        exitTime: "", 
+                        date: selectedDateStr, 
+                        day: selectedDayNameStr, 
+                        reason: "", 
+                        leaveImage: "" 
+                    });
+                    alert(`✅ تم التحقق وتسجيل حضور (${name}) بنجاح (${status})!`);
+                } else if (action === 'exit') {
+                    if (!snap.empty) {
+                        await setDoc(doc(db, 'attendance', snap.docs[0].id), { 
+                            exitTime: timeInput,
+                            exitDate: selectedDateStr,
+                            exitDay: selectedDayNameStr
+                        }, { merge: true });
+                        alert(`✅ تم التحقق وتسجيل انصراف (${name}) بنجاح!`);
+                    }
+                }
+                loadEmployees();
+            } catch (e) {
+                console.error(e);
+                alert("حدث خطأ أثناء الاتصال بقاعدة البيانات أو معالجة الكاميرا: " + e.message);
+            }
             return;
         }
 
@@ -317,128 +312,14 @@
             document.getElementById('leaveModal').style.display = 'flex';
         } else if (action === 'absent') {
             if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا التاريخ!"); return; }
-            await addDoc(collection(db, "attendance"), { empCode: code, name, status: "غائب", time: "-", exitTime: "-", date: selectedDateStr, day: selectedDayNameStr, reason: "غائب", leaveImage: "" });
+            await addDoc(collection(db, "attendance"), { empCode: String(code), name, status: "غائب", time: "-", exitTime: "-", date: selectedDateStr, day: selectedDayNameStr, reason: "غائب", leaveImage: "" });
             alert(`تم تسجيل غياب (${name}) لتاريخ ${selectedDateStr}`);
             loadEmployees();
         } else if (action === 'seconded') {
             if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا التاريخ!"); return; }
-            await addDoc(collection(db, "attendance"), { empCode: code, name, status: "منسب", time: "-", exitTime: "-", date: selectedDateStr, day: selectedDayNameStr, reason: "منسب لجهة أخرى", leaveImage: "" });
+            await addDoc(collection(db, "attendance"), { empCode: String(code), name, status: "منسب", time: "-", exitTime: "-", date: selectedDateStr, day: selectedDayNameStr, reason: "منسب لجهة أخرى", leaveImage: "" });
             alert(`تم تسجيل انسباب (${name}) لتاريخ ${selectedDateStr}`);
             loadEmployees();
-        }
-    };
-
-    window.closeFaceModal = () => {
-        stopCamera();
-        document.getElementById('faceVerificationModal').style.display = 'none';
-        pendingActionData = null;
-    };
-
-    document.getElementById('cancelVerificationBtn').onclick = window.closeFaceModal;
-    document.getElementById('retryCameraBtn').onclick = startCamera;
-    document.getElementById('switchCameraBtn').onclick = window.switchCameraMode;
-    
-    document.getElementById('confirmVerificationBtn').onclick = async () => {
-        if (!pendingActionData) {
-            alert("حدث خطأ: بيانات العملية غير موجودة، يرجى إعادة محاولة الضغط.");
-            window.closeFaceModal();
-            return;
-        }
-
-        const canvas = document.getElementById('verificationCanvas');
-        canvas.width = 150;
-        canvas.height = 150;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(verificationVideo, 0, 0, canvas.width, canvas.height);
-
-        const currentHash = generateAdvancedFaceHash(canvas);
-        
-        if (!currentHash) {
-            alert("❌ فشل التقاط الوجه بوضوح! يرجى تعديل الإضاءة والتركيز أمام العدسة.");
-            document.getElementById('camStatusText').innerText = "تعذر التعرف على الوجه، حاول مرة أخرى.";
-            return;
-        }
-
-        document.getElementById('camStatusText').innerText = "جاري التحقق أو حفظ البصمة...";
-
-        try {
-            const empDocRef = doc(db, "employees", pendingActionData.code);
-            const empSnap = await getDoc(empDocRef);
-
-            if (!empSnap.exists()) {
-                alert("كود الموظف غير موجود في قاعدة بيانات الموظفين!");
-                window.closeFaceModal();
-                return;
-            }
-
-            const empData = empSnap.data();
-            
-            // إذا لم يكن للموظف بصمة وجه مسجلة، نقوم بحفظ الصورة الحالية تلقائياً كبصمة أولى له (من التسجيل السريع)
-            if (!empData.imageHash || empData.imageHash.trim() === "") {
-                await setDoc(empDocRef, { imageHash: currentHash }, { merge: true });
-                alert(`✨ تم التقاط وتسجيل بصمة الوجه للموظف (${pendingActionData.name}) بنجاح لأول مرة!\n\nسيتم اعتماد هذه الصورة في المرات القادمة.`);
-                
-                const currentActionData = { ...pendingActionData };
-                window.closeFaceModal();
-
-                // إتمام عملية الحضور مباشرة بعد التسجيل الأول
-                if (currentActionData.action === 'attendance') {
-                    let status = (currentActionData.timeInput > getLimit(currentActionData.type, currentActionData.timeInput)) ? "متأخر" : "حاضر";
-                    await addDoc(collection(db, "attendance"), { 
-                        empCode: currentActionData.code, 
-                        name: currentActionData.name, 
-                        status, 
-                        time: currentActionData.timeInput, 
-                        exitTime: "", 
-                        date: selectedDateStr, 
-                        day: selectedDayNameStr, 
-                        reason: "", 
-                        leaveImage: "" 
-                    });
-                    alert(`✅ تم تسجيل حضور (${currentActionData.name}) بنجاح!`);
-                }
-                loadEmployees();
-                return;
-            }
-
-            const similarity = compareImageHashes(empData.imageHash, currentHash);
-            console.log("نسبة المطابقة الذكية:", similarity);
-
-            if (similarity >= 65) {
-                const currentActionData = { ...pendingActionData };
-                window.closeFaceModal();
-
-                if (currentActionData.action === 'attendance') {
-                    let status = (currentActionData.timeInput > getLimit(currentActionData.type, currentActionData.timeInput)) ? "متأخر" : "حاضر";
-                    await addDoc(collection(db, "attendance"), { 
-                        empCode: currentActionData.code, 
-                        name: currentActionData.name, 
-                        status, 
-                        time: currentActionData.timeInput, 
-                        exitTime: "", 
-                        date: selectedDateStr, 
-                        day: selectedDayNameStr, 
-                        reason: "", 
-                        leaveImage: "" 
-                    });
-                    alert(`✅ تم التحقق بنجاح! تسجيل حضور (${currentActionData.name})`);
-                } else if (currentActionData.action === 'exit') {
-                    const q = query(collection(db, "attendance"), where("empCode", "==", currentActionData.code), where("date", "==", selectedDateStr));
-                    const snap = await getDocs(q);
-                    if (!snap.empty) {
-                        await setDoc(doc(db, 'attendance', snap.docs[0].id), { exitTime: currentActionData.timeInput }, { merge: true });
-                        alert(`✅ تم التحقق بنجاح! تسجيل انصراف (${currentActionData.name})`);
-                    }
-                }
-                loadEmployees();
-            } else {
-                alert(`❌ فشل التحقق! وجه الشخص الحالي لا يطابق الموظف الأساسي (نسبة المطابقة: ${similarity.toFixed(1)}%).`);
-                document.getElementById('camStatusText').innerText = "فشل المطابقة، الوجه غير مطابق.";
-            }
-        } the catch (e) {
-            console.error("Firebase Error details:", e);
-            alert("حدث خطأ أثناء الاتصال بقاعدة البيانات للتحقق: " + e.message);
-            window.closeFaceModal();
         }
     };
 
@@ -529,7 +410,7 @@
 
         try {
             await addDoc(collection(db, "attendance"), {
-                empCode: activeEmpForLeave.id,
+                empCode: String(activeEmpForLeave.id),
                 name: activeEmpForLeave.name,
                 status: "مجاز",
                 time: "-",
