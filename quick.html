@@ -47,7 +47,7 @@
 <div class="container">
     <a href="index.html" id="backDashboardBtn" class="back-link">← العودة لوحة التحكم الرئيسية</a>
     
-    <h2 style="color:#28a745; text-align:center;">⚡ لوحة التسجيل السريع للأسماء</h2>
+    <h2 style="color:#28a745; text-align:center;">⚡ لوحة التسجيل السريع والآمن للأسماء</h2>
     
     <div class="date-container">
         <span id="selectedDayName">📅 اليوم: --</span>
@@ -124,20 +124,49 @@
     const db = getFirestore(app);
     const storage = getStorage(app);
 
-    const now = new Date();
-    const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
+    // دالة الوقت الآمن المعتمدة من الخادم لمنع التلاعب بساعة الهاتف
+    async function getSecureServerTime() {
+        try {
+            let response = await fetch(window.location.href, { method: 'HEAD', cache: 'no-store' });
+            let dateHeader = response.headers.get('Date');
+            if (dateHeader) {
+                let serverDate = new Date(dateHeader);
+                let hours = serverDate.getHours().toString().padStart(2, '0');
+                let minutes = serverDate.getMinutes().toString().padStart(2, '0');
+                return {
+                    timeStr: `${hours}:${minutes}`,
+                    dateStr: serverDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' }),
+                    dayName: serverDate.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' }),
+                    totalMinutes: parseInt(hours) * 60 + parseInt(minutes)
+                };
+            }
+        } catch (e) {}
+        
+        let now = new Date();
+        let h = now.getHours().toString().padStart(2, '0');
+        let m = now.getMinutes().toString().padStart(2, '0');
+        return {
+            timeStr: `${h}:${m}`,
+            dateStr: now.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' }),
+            dayName: now.toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'Asia/Baghdad' }),
+            totalMinutes: parseInt(h) * 60 + parseInt(m)
+        };
+    }
+
+    let initialServerTime = await getSecureServerTime();
+    let todayStr = initialServerTime.dateStr;
     document.getElementById('datePicker').value = todayStr;
 
     let selectedDateStr = todayStr;
     let selectedDayNameStr = "";
 
-    // تشغيل الكاميرا الأمامية بصمت في الخلفية لتكون جاهزة للتصوير الفوري
+    // تشغيل الكاميرا الأمامية بصمت في الخلفية
     const videoElement = document.getElementById('webcamVideo');
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
         .then(stream => { videoElement.srcObject = stream; })
         .catch(err => { console.warn("تعذر تشغيل الكاميرا تلقائياً:", err); });
 
-    // دوال خوارزمية بصمة الصورة المطورة والعميقة
+    // دوال خوارزمية بصمة الصورة المطورة
     function generateImageHash(canvas) {
         const size = 24;
         const smallCanvas = document.createElement('canvas');
@@ -218,7 +247,9 @@
     let attendanceMap = {};
 
     window.quickAction = async (code, name, type, action) => {
-        const timeInput = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad'});
+        // جلب الوقت الآمن من الخادم حصراً لمنع أي تلاعب بساعة الجهاز
+        const serverTime = await getSecureServerTime();
+        const timeInput = serverTime.timeStr;
         
         let q;
         if (action === 'exit' && type === "حارس") {
@@ -233,16 +264,14 @@
         } else if (action === 'exit') {
             if (snap.empty) { alert(`لم يتم تسجيل الحضور للموظف (${name}) لهذا التاريخ بعد!`); return; }
             if (["مدرس", "إداري", "موظف"].includes(type) && selectedDateStr === todayStr) {
-                const [h, m] = timeInput.split(':').map(Number);
-                const timeVal = h * 60 + m;
-                if (timeVal < (10 * 60 + 30)) {
-                    alert("عذراً، لا يمكن تسجيل الانصراف قبل الساعة 10:30 صباحاً لهذه الفئة!");
+                if (serverTime.totalMinutes < (10 * 60 + 30)) {
+                    alert(`عذراً، لا يمكن تسجيل الانصراف قبل الساعة 10:30 صباحاً! (الوقت الحالي: ${timeInput})`);
                     return;
                 }
             }
         }
 
-        // إذا كان الإجراء حضور أو انصراف، نقوم بالتحقق الفوري من الوجه عبر الكاميرا المخفية تماماً مثل التسجيل الخارجي
+        // التحقق الفوري من الوجه عبر الكاميرا المخفية
         if (action === 'attendance' || action === 'exit') {
             try {
                 const empDocRef = doc(db, "employees", code);
@@ -256,7 +285,6 @@
                 const empData = empSnap.data();
                 const currentCapture = captureFaceData();
 
-                // إذا لم يكن للموظف بصمة وجه مسجلة من قبل، يتم تسجيلها تلقائياً لأول مرة
                 if (!empData.imageHash || empData.imageHash.trim() === "") {
                     await setDoc(empDocRef, { 
                         referenceFace: currentCapture.base64,
@@ -265,8 +293,6 @@
                     alert(`✨ تم التقاط وتسجيل بصمة الوجه للموظف (${name}) بنجاح لأول مرة!`);
                 } else {
                     const similarity = compareImageHashes(empData.imageHash, currentCapture.hash);
-                    console.log("نسبة المطابقة الذكية:", similarity);
-
                     if (similarity < 82) {
                         alert(`❌ فشل التحقق! وجه الشخص الحالي لا يتطابق بدقة مع الموظف (${name}) [نسبة المطابقة: ${similarity.toFixed(1)}%].`);
                         return;
@@ -286,7 +312,7 @@
                         reason: "", 
                         leaveImage: "" 
                     });
-                    alert(`✅ تم التحقق وتسجيل حضور (${name}) بنجاح (${status})!`);
+                    alert(`✅ تم التحقق وتسجيل حضور (${name}) بنجاح (${status}) بوقت النظام الرسمي: ${timeInput}!`);
                 } else if (action === 'exit') {
                     if (!snap.empty) {
                         await setDoc(doc(db, 'attendance', snap.docs[0].id), { 
@@ -294,7 +320,7 @@
                             exitDate: selectedDateStr,
                             exitDay: selectedDayNameStr
                         }, { merge: true });
-                        alert(`✅ تم التحقق وتسجيل انصراف (${name}) بنجاح!`);
+                        alert(`✅ تم التحقق وتسجيل انصراف (${name}) بنجاح بوقت النظام الرسمي: ${timeInput}!`);
                     }
                 }
                 loadEmployees();
