@@ -32,9 +32,10 @@
         /* نافذة الكاميرا للتحقق بالوجه */
         .camera-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 3000; justify-content: center; align-items: center; }
         .camera-modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-        .camera-modal-content video { width: 100%; max-height: 280px; border-radius: 8px; background: #000; object-fit: cover; }
-        .cam-btn { background: #28a745; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 12px; width: 100%; }
-        .cam-cancel-btn { background: #dc3545; color: white; border: none; padding: 8px 20px; font-size: 14px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%; }
+        .camera-modal-content video { width: 100%; max-height: 260px; border-radius: 8px; background: #000; object-fit: cover; }
+        .cam-btn { background: #28a745; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; width: 100%; }
+        .cam-retry-btn { background: #17a2b8; color: white; border: none; padding: 8px 15px; font-size: 14px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 6px; width: 100%; }
+        .cam-cancel-btn { background: #dc3545; color: white; border: none; padding: 8px 20px; font-size: 14px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 6px; width: 100%; }
 
         /* نافذة اختيار طريقة إدخال الإجازة */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
@@ -85,10 +86,11 @@
 <div id="faceVerificationModal" class="camera-modal-overlay">
     <div class="camera-modal-content">
         <h3 id="camModalTitle" style="color: #28a745; margin-top:0;">التحقق من بصمة الوجه</h3>
-        <p id="camEmpTarget" style="font-weight: bold; color: #555; margin-bottom: 10px;"></p>
+        <p id="camEmpTarget" style="font-weight: bold; color: #555; margin-bottom: 8px;"></p>
         <video id="verificationVideo" autoplay playsinline muted></video>
-        <p id="camStatusText" style="font-size: 13px; color: #666; margin-top: 8px;">يرجى النظر للكاميرا والثبات...</p>
+        <p id="camStatusText" style="font-size: 12px; color: #666; margin-top: 6px;">يرجى السماح للكاميرا بالعمل والنظر إليها...</p>
         <button class="cam-btn" id="confirmVerificationBtn">التقاط والتحقق</button>
+        <button class="cam-retry-btn" id="retryCameraBtn">🔄 إعادة تشغيل الكاميرا</button>
         <button class="cam-cancel-btn" id="cancelVerificationBtn">إلغاء</button>
     </div>
 </div>
@@ -145,11 +147,48 @@
 
     let selectedDateStr = todayStr;
     let selectedDayNameStr = "";
+    let mediaStream = null;
 
     const verificationVideo = document.getElementById('verificationVideo');
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
-        .then(stream => { verificationVideo.srcObject = stream; })
-        .catch(err => { console.warn("تعذر تشغيل الكاميرا تلقائياً:", err); });
+
+    // دالة آمنة لتشغيل الكاميرا متوافقة مع الهواتف والايباد
+    async function startCamera() {
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+        }
+        
+        try {
+            // محاولة التشغيل بالكاميرا الأمامية أولاً
+            mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, 
+                audio: false 
+            });
+            verificationVideo.srcObject = mediaStream;
+            await verificationVideo.play();
+            document.getElementById('camStatusText').innerText = "الكاميرا تعمل بنجاح، يرجى النظر للعدسة.";
+        } catch (err1) {
+            console.warn("فشل التشغيل المباشر، جاري المحاولة بأي كاميرا متاحة...", err1);
+            try {
+                // محاولة بديلة لأي كاميرا متوفرة في الهاتف في حال رفضت الأمامية المحددة
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                verificationVideo.srcObject = mediaStream;
+                await verificationVideo.play();
+                document.getElementById('camStatusText').innerText = "تم تشغيل الكاميرا بنجاح.";
+            } catch (err2) {
+                console.error("تعذر تشغيل الكاميرا نهائياً:", err2);
+                document.getElementById('camStatusText').innerText = "❌ تعذر تشغيل الكاميرا. يرجى السماح بالإذن من إعدادات المتصفح.";
+                alert("تعذر الوصول إلى كاميرا الهاتف. تأكد من منح المتصفح صلاحية استخدام الكاميرا من إعدادات المتصفح.");
+            }
+        }
+    }
+
+    function stopCamera() {
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+            mediaStream = null;
+        }
+        verificationVideo.srcObject = null;
+    }
 
     function updateDateDisplay(dateString) {
         const [year, month, day] = dateString.split('-').map(Number);
@@ -248,6 +287,7 @@
             document.getElementById('camModalTitle').innerText = action === 'attendance' ? "التحقق للـحضور" : "التحقق للـانصراف";
             document.getElementById('camEmpTarget').innerText = `الموظف: ${name}`;
             document.getElementById('faceVerificationModal').style.display = 'flex';
+            startCamera(); // تشغيل الكاميرا عند فتح النافذة
             return;
         }
 
@@ -270,16 +310,17 @@
     };
 
     window.closeFaceModal = () => {
+        stopCamera();
         document.getElementById('faceVerificationModal').style.display = 'none';
         pendingActionData = null;
     };
 
-    // ربط الأزرار مباشرة لمنع فقدان البيانات وضمان استقرار النطاق البرمجي (Scope)
     document.getElementById('cancelVerificationBtn').onclick = window.closeFaceModal;
+    document.getElementById('retryCameraBtn').onclick = startCamera;
     
     document.getElementById('confirmVerificationBtn').onclick = async () => {
         if (!pendingActionData) {
-            alert("حدث خطأ: بيانات العملية غير موجودة، يرجى إعادة محاولة الضغط على زر الحضور.");
+            alert("حدث خطأ: بيانات العملية غير موجودة، يرجى إعادة محاولة الضغط.");
             window.closeFaceModal();
             return;
         }
@@ -305,7 +346,7 @@
 
             const empData = empSnap.data();
             if (!empData.imageHash) {
-                alert("لم يتم العثور على بصمة وجه مسجلة لهذا الموظف في النظام! يرجى إعادة تسجيل بصمته من صفحة الموظفين أولاً.");
+                alert("لم يتم العثور على بصمة وجه مسجلة لهذا الموظف! يرجى إعادة تسجيل بصمته من صفحة الموظفين.");
                 window.closeFaceModal();
                 return;
             }
@@ -449,7 +490,7 @@
                 leaveImage: imageUrl
             });
 
-            alert(`تم تسجيل إجازة الموظف (${activeEmpForLeave.name}) لتاريخ ${selectedDateStr} بنجاح!`);
+            alert(`تم تسجيل إجازة الموظف (${activeEmpForLeave.Name || activeEmpForLeave.name}) لتاريخ ${selectedDateStr} بنجاح!`);
             loadEmployees();
         } catch (error) {
             alert("خطأ في حفظ بيانات الإجازة في قاعدة البيانات.");
@@ -503,6 +544,7 @@
 
     function renderList(list) {
         let qRows = "";
+        list.options = list.forEach ? list : [];
         list.forEach(data => {
             let attRecord = attendanceMap[data.id];
             let imageButtonHtml = "";
@@ -530,4 +572,3 @@
 </script>
 </body>
 </html>
- 
