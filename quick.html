@@ -5,15 +5,13 @@
     <title>التسجيل السريع - اعدادية النجدين</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .search-box { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
         
-        /* ترويسة التاريخ المحدثة */
         .date-container { background: #e2f0d9; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 15px; border: 1px solid #b7e1cd; display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap; }
         .date-container span { font-weight: bold; color: #385723; font-size: 16px; }
         .date-input-custom { padding: 5px 10px; font-size: 15px; border: 1px solid #385723; border-radius: 5px; background: white; color: #385723; font-weight: bold; cursor: pointer; }
 
-        /* تنسيق أزرار التصنيفات */
         .filter-buttons { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
         .btn-filter { background: #6c757d; color: white; padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; }
         .btn-filter.active { background: #28a745; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
@@ -22,14 +20,21 @@
         th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
         th { background-color: #28a745; color: white; }
         
-        /* تنسيق الأزرار */
-        .btn-quick { background: #28a745; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
-        .btn-exit { background: #6f42c1; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
-        .btn-excused { background: #17a2b8; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
-        .btn-absent { background: #dc3545; color: white; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .btn-quick { background: #28a745; color: white; padding: 8px 10px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .btn-exit { background: #6f42c1; color: white; padding: 8px 10px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .btn-excused { background: #17a2b8; color: white; padding: 8px 10px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .btn-absent { background: #dc3545; color: white; padding: 8px 10px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
+        .btn-seconded { background: #fd7e14; color: white; padding: 8px 10px; border-radius: 5px; border: none; cursor: pointer; margin: 2px; font-weight: bold; }
         .btn-view-img { background: #ffc107; color: #333; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; font-size: 12px; margin-top: 5px; display: inline-block; text-decoration: none; }
 
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
+
+        /* نافذة الكاميرا للتحقق بالوجه */
+        .camera-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 3000; justify-content: center; align-items: center; }
+        .camera-modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .camera-modal-content video { width: 100%; max-height: 280px; border-radius: 8px; background: #000; object-fit: cover; }
+        .cam-btn { background: #28a745; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 12px; width: 100%; }
+        .cam-cancel-btn { background: #dc3545; color: white; border: none; padding: 8px 20px; font-size: 14px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%; }
 
         /* نافذة اختيار طريقة إدخال الإجازة */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
@@ -50,7 +55,6 @@
     
     <h2 style="color:#28a745; text-align:center;">⚡ لوحة التسجيل السريع للأسماء</h2>
     
-    <!-- حقل اختيار التاريخ واليوم -->
     <div class="date-container">
         <span id="selectedDayName">📅 اليوم: --</span>
         <div>
@@ -77,6 +81,18 @@
     </table>
 </div>
 
+<!-- نافذة التحقق بالكاميرا للوجه -->
+<div id="faceVerificationModal" class="camera-modal-overlay">
+    <div class="camera-modal-content">
+        <h3 id="camModalTitle" style="color: #28a745; margin-top:0;">التحقق من بصمة الوجه</h3>
+        <p id="camEmpTarget" style="font-weight: bold; color: #555; margin-bottom: 10px;"></p>
+        <video id="verificationVideo" autoplay playsinline muted></video>
+        <p id="camStatusText" style="font-size: 13px; color: #666; margin-top: 8px;">يرجى النظر الكاميرا والثبات...</p>
+        <button class="cam-btn" onclick="captureAndVerifyFace()">التقاط والتحقق</button>
+        <button class="cam-cancel-btn" onclick="closeFaceModal()">إلغاء</button>
+    </div>
+</div>
+
 <!-- نافذة اختيار طريقة إدخال الإجازة -->
 <div id="leaveModal" class="modal-overlay">
     <div class="modal-content">
@@ -98,10 +114,11 @@
 </div>
 
 <input type="file" id="leaveImageInput" accept="image/*" style="display: none;" onchange="handleImageSelected(this)">
+<canvas id="verificationCanvas" style="display:none;"></canvas>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, where } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, doc, setDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
     if (window.self === window.top && !document.referrer.includes(window.location.hostname)) {
@@ -122,7 +139,6 @@
     const db = getFirestore(app);
     const storage = getStorage(app);
 
-    // ضبط التاريخ الحالي كافتراضي عند فتح الصفحة
     const now = new Date();
     const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
     document.getElementById('datePicker').value = todayStr;
@@ -131,7 +147,6 @@
     let selectedDayNameStr = "";
 
     function updateDateDisplay(dateString) {
-        // حساب اسم اليوم بناءً على التاريخ المختار
         const [year, month, day] = dateString.split('-').map(Number);
         const d = new Date(year, month - 1, day);
         selectedDayNameStr = d.toLocaleDateString('ar-EG', { weekday: 'long' });
@@ -161,7 +176,50 @@
     let activeEmpForLeave = null;
     let selectedLeaveMethod = null;
     let attendanceMap = {};
+    let pendingActionData = null;
+    let mediaStream = null;
 
+    // خوارزمية حساب الـ Hash والمقارنة بالمسافة (Hamming distance)
+    function computeImageHashFromCanvas(canvas) {
+        const ctx = canvas.getContext('2d');
+        const w = 24;
+        const h = 24;
+        const smallCanvas = document.createElement('canvas');
+        smallCanvas.width = w;
+        smallCanvas.height = h;
+        const sCtx = smallCanvas.getContext('2d');
+        sCtx.drawImage(canvas, 0, 0, w, h);
+        const imgData = sCtx.getImageData(0, 0, w, h).data;
+        
+        let gray = [];
+        for (let i = 0; i < imgData.length; i += 4) {
+            let r = imgData[i];
+            let g = imgData[i+1];
+            let b = imgData[i+2];
+            gray.push(0.299 * r + 0.587 * g + 0.114 * b);
+        }
+
+        let bits = "";
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w - 1; x++) {
+                let p1 = gray[y * w + x];
+                let p2 = gray[y * w + x + 1];
+                bits += (p1 > p2) ? "1" : "0";
+            }
+        }
+        return bits;
+    }
+
+    function compareHashes(h1, h2) {
+        if (!h1 || !h2 || h1.length !== h2.length) return 0;
+        let same = 0;
+        for (let i = 0; i < h1.length; i++) {
+            if (h1[i] === h2[i]) same++;
+        }
+        return (same / h1.length) * 100;
+    }
+
+    // فتح نافذة الكاميرا للتحقق
     window.quickAction = async (code, name, type, action) => {
         const timeInput = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad'});
         
@@ -171,32 +229,34 @@
         } else {
             q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", selectedDateStr));
         }
-        
         const snap = await getDocs(q);
 
         if (action === 'attendance') {
             if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا التاريخ!"); return; }
-            let status = (timeInput > getLimit(type, timeInput)) ? "متأخر" : "حاضر";
-            await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: timeInput, exitTime: "", date: selectedDateStr, day: selectedDayNameStr, reason: "", leaveImage: "" });
-            alert(`تم تسجيل حضور (${name}) لتاريخ ${selectedDateStr}`);
-            loadEmployees();
         } else if (action === 'exit') {
             if (snap.empty) { alert("لم يتم تسجيل الحضور لهذا التاريخ بعد!"); return; }
-            
             if (["مدرس", "إداري", "موظف"].includes(type) && selectedDateStr === todayStr) {
                 const [h, m] = timeInput.split(':').map(Number);
                 const timeVal = h * 60 + m;
-                // تم تعديل الشرط هنا ليصبح 10:30 صباحاً (10 * 60 + 30 = 630 دقيقة) بدلاً من 11:00
                 if (timeVal < (10 * 60 + 30)) {
                     alert("عذراً، لا يمكن تسجيل الانصراف قبل الساعة 10:30 صباحاً لهذه الفئة!");
                     return;
                 }
             }
+        }
 
-            await setDoc(doc(db, 'attendance', snap.docs[0].id), { exitTime: timeInput }, { merge: true });
-            alert(`تم تسجيل انصراف (${name})`);
-            loadEmployees();
-        } else if (action === 'excused') {
+        // إذا كان الإجراء حضور أو انصراف -> نفتح كاميرا التحقق
+        if (action === 'attendance' || action === 'exit') {
+            pendingActionData = { code, name, type, action, timeInput };
+            document.getElementById('camModalTitle').innerText = action === 'attendance' ? "التحقق للـحضور" : "التحقق للـانصراف";
+            document.getElementById('camEmpTarget').innerText = `الموظف: ${name}`;
+            document.getElementById('faceVerificationModal').style.display = 'flex';
+            startCamera();
+            return;
+        }
+
+        // الأجراءات الأخرى (مجاز، غائب، منسب) لا تتطلب كاميرا
+        if (action === 'excused') {
             if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا التاريخ!"); return; }
             activeEmpForLeave = { id: code, name: name, type: type };
             document.getElementById('modalEmpName').innerText = `الموظف: ${name} (${selectedDateStr})`;
@@ -206,6 +266,87 @@
             await addDoc(collection(db, "attendance"), { empCode: code, name, status: "غائب", time: "-", exitTime: "-", date: selectedDateStr, day: selectedDayNameStr, reason: "غائب", leaveImage: "" });
             alert(`تم تسجيل غياب (${name}) لتاريخ ${selectedDateStr}`);
             loadEmployees();
+        } else if (action === 'seconded') {
+            if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا التاريخ!"); return; }
+            await addDoc(collection(db, "attendance"), { empCode: code, name, status: "منسب", time: "-", exitTime: "-", date: selectedDateStr, day: selectedDayNameStr, reason: "منسب لجهة أخرى", leaveImage: "" });
+            alert(`تم تسجيل انسباب (${name}) لتاريخ ${selectedDateStr}`);
+            loadEmployees();
+        }
+    };
+
+    async function startCamera() {
+        try {
+            mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+            const video = document.getElementById('verificationVideo');
+            video.srcObject = mediaStream;
+        } catch (err) {
+            alert("تعذر فتح الكاميرا، تأكد من إعطاء الصلاحيات.");
+            closeFaceModal();
+        }
+    }
+
+    window.closeFaceModal = () => {
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+            mediaStream = null;
+        }
+        document.getElementById('faceVerificationModal').style.display = 'none';
+        pendingActionData = null;
+    };
+
+    window.captureAndVerifyFace = async () => {
+        if (!pendingActionData) return;
+        const video = document.getElementById('verificationVideo');
+        const canvas = document.getElementById('verificationCanvas');
+        canvas.width = video.videoWidth || 320;
+        canvas.height = video.videoHeight || 240;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const currentHash = computeImageHashFromCanvas(canvas);
+
+        document.getElementById('camStatusText').innerText = "جاري التحقق من بصمة الوجه...";
+
+        try {
+            // جلب بيانات الموظف من المستند الخاص به في قاعدة البيانات
+            const empDocRef = doc(db, "employees", pendingActionData.code);
+            const empSnap = await getDoc(empDocRef);
+
+            if (!empSnap.exists() || !empSnap.data().imageHash) {
+                alert("لم يتم العثور على بصمة وجه مسجلة لهذا الموظف في النظام!");
+                closeFaceModal();
+                return;
+            }
+
+            const storedHash = empSnap.data().imageHash;
+            const similarity = compareHashes(currentHash, storedHash);
+
+            if (similarity >= 82) {
+                // نجاح التحقق
+                closeFaceModal();
+                const { code, name, type, action, timeInput } = pendingActionData;
+
+                if (action === 'attendance') {
+                    let status = (timeInput > getLimit(type, timeInput)) ? "متأخر" : "حاضر";
+                    await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: timeInput, exitTime: "", date: selectedDateStr, day: selectedDayNameStr, reason: "", leaveImage: "" });
+                    alert(`✅ تم التحقق بنجاح! تسجيل حضور (${name})`);
+                } else if (action === 'exit') {
+                    const q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", selectedDateStr));
+                    const snap = await getDocs(q);
+                    if (!snap.empty) {
+                        await setDoc(doc(db, 'attendance', snap.docs[0].id), { exitTime: timeInput }, { merge: true });
+                        alert(`✅ تم التحقق بنجاح! تسجيل انصراف (${name})`);
+                    }
+                }
+                loadEmployees();
+            } else {
+                alert(`❌ فشل التحقق! وجه الشخص الحالي لا يتطابق بدقة مع صاحب الحساب الأساسي (نسبة المطابقة: ${similarity.toFixed(1)}%).`);
+                document.getElementById('camStatusText').innerText = "فشل التطابق، حاول مرة أخرى.";
+            }
+        } catch (e) {
+            console.error(e);
+            alert("حدث خطأ أثناء الاتصال بقاعدة البيانات للتحقق.");
+            closeFaceModal();
         }
     };
 
@@ -225,7 +366,6 @@
         }
     };
 
-    // دالة ضغط الصورة تلقائياً
     function compressImage(file, maxWidth = 800, quality = 0.7) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -250,14 +390,8 @@
                     ctx.drawImage(img, 0, 0, width, height);
 
                     canvas.toBlob((blob) => {
-                        if (!blob) {
-                            reject(new Error('فشل ضغط الصورة'));
-                            return;
-                        }
-                        const compressedFile = new File([blob], file.name, {
-                            type: 'image/jpeg',
-                            lastModified: Date.now()
-                        });
+                        if (!blob) { reject(new Error('فشل ضغط الصورة')); return; }
+                        const compressedFile = new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() });
                         resolve(compressedFile);
                     }, 'image/jpeg', quality);
                 };
@@ -334,7 +468,6 @@
     let currentCategory = 'الكل';
 
     async function loadEmployees() {
-        // جلب سجلات الحضور والإجازات للتاريخ المحدد حصراً
         const attSnap = await getDocs(query(collection(db, "attendance"), where("date", "==", selectedDateStr)));
         attendanceMap = {};
         attSnap.forEach(d => {
@@ -359,13 +492,11 @@
 
     window.filterTable = () => {
         const searchVal = document.getElementById('searchEmp').value.toLowerCase();
-        
         const filtered = allEmployees.filter(e => {
             const matchesCategory = (currentCategory === 'الكل' || e.type === currentCategory);
             const matchesSearch = e.name.toLowerCase().includes(searchVal);
             return matchesCategory && matchesSearch;
         });
-
         renderList(filtered);
     };
 
@@ -375,7 +506,6 @@
             let attRecord = attendanceMap[data.id];
             let imageButtonHtml = "";
 
-            // التحقق من وجود إجازة وصورة مرفقة بغض النظر عن التاريخ القديم أو الجديد
             if (attRecord && attRecord.status === 'مجاز' && attRecord.leaveImage && attRecord.leaveImage.trim() !== "") {
                 imageButtonHtml = `<br><button class="btn-view-img" onclick="viewLeaveImage('${attRecord.leaveImage}')">📄 عرض صورة الإجازة</button>`;
             }
@@ -388,6 +518,7 @@
                     <button class="btn-exit" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'exit')">انصراف</button>
                     <button class="btn-excused" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'excused')">مجاز</button>
                     <button class="btn-absent" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'absent')">غائب</button>
+                    <button class="btn-seconded" onclick="quickAction('${data.id}', '${data.name}', '${data.type}', 'seconded')">منسب</button>
                 </td>
             </tr>`;
         });
@@ -398,3 +529,4 @@
 </script>
 </body>
 </html>
+ 
