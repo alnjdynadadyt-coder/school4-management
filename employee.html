@@ -116,15 +116,14 @@
     const SCHOOL_LAT = 31.7296172;
     const SCHOOL_LON = 44.9905462;
 
-    // تشغيل الكاميرا الأمامية بصمت في الخلفية لتكون جاهزة للتصوير الفوري
+    // تشغيل الكاميرا الأمامية بصمت في الخلفية
     const videoElement = document.getElementById('webcamVideo');
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
         .then(stream => { videoElement.srcObject = stream; })
         .catch(err => { console.warn("تعذر تشغيل الكاميرا تلقائياً:", err); });
 
-    // دوال خوارزمية بصمة الصورة المطورة والعميقة لمنع الخداع
     function generateImageHash(canvas) {
-        const size = 24; // دقة أعلى لالتقاط التفاصيل والتباين بدقة
+        const size = 24;
         const smallCanvas = document.createElement('canvas');
         smallCanvas.width = size;
         smallCanvas.height = size;
@@ -158,7 +157,6 @@
         return (matchingBits / hash1.length) * 100;
     }
 
-    // التقاط صورة الكاميرا وتحويلها
     function captureFaceData() {
         const canvas = document.getElementById('snapshotCanvas');
         canvas.width = 150;
@@ -193,7 +191,6 @@
         msgDiv.innerHTML = "⚠️ يرجى السماح للمتصفح بالوصول إلى الموقع الجغرافي (GPS).";
     }, { enableHighAccuracy: true });
 
-    // دالة الوقت الآمن من الخادم
     async function getSecureServerTime() {
         try {
             let response = await fetch(window.location.href, { method: 'HEAD', cache: 'no-store' });
@@ -249,7 +246,7 @@
 
         msgDiv.style.background = "#d1ecf1";
         msgDiv.style.color = "#0c5460";
-        msgDiv.innerHTML = "⏳ جاري التحقق من الوجه والهوية...";
+        msgDiv.innerHTML = "⏳ جاري التحقق من الهوية...";
 
         try {
             const empSnap = await getDoc(doc(db, "employees", code));
@@ -261,45 +258,50 @@
             }
             const empData = empSnap.data();
 
-            // فحص بصمة الجهاز
-            const qDev = query(collection(db, "employees"), where("deviceId", "==", deviceId));
-            const devSnap = await getDocs(qDev);
-            let ownerEmpCode = null;
-            devSnap.forEach(d => { if (d.id !== code) ownerEmpCode = d.id; });
+            // 💡 التحقق من استثناء الموظف من بصمة الوجه
+            const isSkipped = empData.skipFaceCheck === true;
 
-            if (ownerEmpCode) {
-                msgDiv.style.background = "#f8d7da";
-                msgDiv.style.color = "#721c24";
-                msgDiv.innerHTML = "❌ هذا الهاتف مسجل مسبقاً لموظف آخر!";
-                return;
-            }
-
-            if (empData.deviceId && empData.deviceId !== deviceId) {
-                msgDiv.style.background = "#f8d7da";
-                msgDiv.style.color = "#721c24";
-                msgDiv.innerHTML = "❌ هذا الكود مقفل ومسجل على جهاز هاتف آخر!";
-                return;
-            }
-
-            // التقاط صورة الوجه الحالية للتحقق
-            const currentCapture = captureFaceData();
-
-            // إذا كانت المرة الأولى لتسجيل الموظف (لا يوجد صورة مخزنة بعد)
-            if (!empData.referenceFace || !empData.imageHash) {
-                await setDoc(doc(db, "employees", code), { 
-                    deviceId: deviceId,
-                    referenceFace: currentCapture.base64,
-                    imageHash: currentCapture.hash
-                }, { merge: true });
-                alert("✨ تم ربط الهاتف وبصمة الوجه بنجاح لأول مرة!");
+            if (isSkipped) {
+                console.log("الموظف مستثنى من بصمة الوجه - تخطي الكاميرا.");
             } else {
-                // مقارنة البصمة الحالية مع البصمة المخزنة بنسبة دقة عالية لمنع الاحتيال
-                const similarity = compareImageHashes(empData.imageHash, currentCapture.hash);
-                if (similarity < 82) { // تم رفع نسبة الحساسية لمنع أي شخص آخر من التسجيل مكانك
+                // فحص بصمة الجهاز للموظفين العاديين فقط
+                const qDev = query(collection(db, "employees"), where("deviceId", "==", deviceId));
+                const devSnap = await getDocs(qDev);
+                let ownerEmpCode = null;
+                devSnap.forEach(d => { if (d.id !== code) ownerEmpCode = d.id; });
+
+                if (ownerEmpCode) {
                     msgDiv.style.background = "#f8d7da";
                     msgDiv.style.color = "#721c24";
-                    msgDiv.innerHTML = "❌ فشل التحقق! وجه الشخص الحالي لا يتطابق بدقة مع صاحب الحساب الأساسي.";
+                    msgDiv.innerHTML = "❌ هذا الهاتف مسجل مسبقاً لموظف آخر!";
                     return;
+                }
+
+                if (empData.deviceId && empData.deviceId !== deviceId) {
+                    msgDiv.style.background = "#f8d7da";
+                    msgDiv.style.color = "#721c24";
+                    msgDiv.innerHTML = "❌ هذا الكود مقفل ومسجل على جهاز هاتف آخر!";
+                    return;
+                }
+
+                // التقاط صورة الوجه الحالية للتحقق
+                const currentCapture = captureFaceData();
+
+                if (!empData.referenceFace || !empData.imageHash) {
+                    await setDoc(doc(db, "employees", code), { 
+                        deviceId: deviceId,
+                        referenceFace: currentCapture.base64,
+                        imageHash: currentCapture.hash
+                    }, { merge: true });
+                    alert("✨ تم ربط الهاتف وبصمة الوجه بنجاح لأول مرة!");
+                } else {
+                    const similarity = compareImageHashes(empData.imageHash, currentCapture.hash);
+                    if (similarity < 82) {
+                        msgDiv.style.background = "#f8d7da";
+                        msgDiv.style.color = "#721c24";
+                        msgDiv.innerHTML = "❌ فشل التحقق! وجه الشخص الحالي لا يتطابق بدقة مع صاحب الحساب الأساسي.";
+                        return;
+                    }
                 }
             }
 
@@ -352,7 +354,7 @@
 
                 msgDiv.style.background = "#e2f0d9";
                 msgDiv.style.color = "#385723";
-                msgDiv.innerHTML = "✅ تم تسجيل الحضور بنجاح كـ: " + status;
+                msgDiv.innerHTML = "✅ تم تسجيل الحضور بنجاح كـ: " + status + (isSkipped ? " (مستثنى من البصمة)" : "");
 
                 document.getElementById('cardEmpName').innerText = empData.name;
                 document.getElementById('cardDate').innerText = `${currentDayName} - ${currentDate}`;
