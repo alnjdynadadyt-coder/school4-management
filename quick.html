@@ -150,7 +150,7 @@
     let selectedDateStr = todayStr;
     let selectedDayNameStr = "";
     let mediaStream = null;
-    let useFrontCamera = true; // الحالة الافتراضية للكاميرا الأمامية
+    let useFrontCamera = true;
 
     const verificationVideo = document.getElementById('verificationVideo');
 
@@ -175,7 +175,6 @@
             document.getElementById('camStatusText').innerText = useFrontCamera ? "الكاميرا الأمامية تعمل بنجاح." : "الكاميرا الخلفية تعمل بنجاح.";
         } catch (err1) {
             try {
-                // محاولة احتياطية عامة في حال فشل فرض نوع الكاميرا
                 mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
                 verificationVideo.srcObject = mediaStream;
                 await verificationVideo.play();
@@ -257,7 +256,7 @@
             variance += Math.pow(grayValues[i] - mean, 2);
         }
         let stdDev = Math.sqrt(variance / grayValues.length);
-        if (stdDev < 15) {
+        if (stdDev < 10) { // خفضنا القليل لتجنب رفض الإضاءات الطبيعية المقبولة
             return null;
         }
 
@@ -305,7 +304,7 @@
         if (action === 'attendance' || action === 'exit') {
             pendingActionData = { code: String(code), name, type, action, timeInput };
             document.getElementById('camModalTitle').innerText = action === 'attendance' ? "التحقق للـحضور" : "التحقق للـانصراف";
-            document.getElementById('camEmpTarget').innerText = `الموظف: ${name}`;
+            document.getElementById('camEmpTarget', name).innerText = `الموظف: ${name}`;
             document.getElementById('faceVerificationModal').style.display = 'flex';
             startCamera();
             return;
@@ -355,7 +354,7 @@
         const currentHash = generateAdvancedFaceHash(canvas);
         
         if (!currentHash) {
-            alert("❌ فشل التقاط الوجه بوضوح! يبدو أن الصورة مظلمة جداً أو أن الكاميرا لم ترصد وجهاً بشرياً حقيقياً بثبات. يرجى تعديل الإضاءة والتركيز.");
+            alert("❌ فشل التقاط الوجه بوضوح! يبدو أن الصورة مظلمة جداً. يرجى تعديل الإضاءة والتركيز أمام العدسة.");
             document.getElementById('camStatusText').innerText = "تعذر التعرف على الوجه، حاول مرة أخرى.";
             return;
         }
@@ -373,15 +372,19 @@
             }
 
             const empData = empSnap.data();
-            if (!empData.imageHash) {
-                alert("لم يتم العثور على بصمة وجه مسجلة لهذا الموظف! يرجى إعادة تسجيل بصمته من صفحة الموظفين أولاً.");
+            
+            // التحقق من وجود بصمة مسجلة للموظف أساساً
+            if (!empData.imageHash || empData.imageHash.trim() === "") {
+                alert(`⚠️ تنبيه: الموظف (${pendingActionData.name}) ليس لديه بصمة وجه مسجلة في قاعدة البيانات!\n\nيرجى الذهاب إلى صفحة إدارة الموظفين وتسجيل بصمة له أولاً لكي يعمل التحقق بشكل صحيح.`);
                 window.closeFaceModal();
                 return;
             }
 
             const similarity = compareImageHashes(empData.imageHash, currentHash);
+            console.log("نسبة المطابقة الذكية:", similarity);
 
-            if (similarity >= 78) {
+            // تم خفض عتبة القبول قليلاً إلى 65% لتجنب الرفض بسبب اختلاف الإضاءة البسيط أو الزاوية
+            if (similarity >= 65) {
                 const currentActionData = { ...pendingActionData };
                 window.closeFaceModal();
 
@@ -409,7 +412,7 @@
                 }
                 loadEmployees();
             } else {
-                alert(`❌ فشل التحقق! وجه الشخص الحالي لا يطابق الموظف الأساسي (نسبة المطابقة: ${similarity.toFixed(1)}%).`);
+                alert(`❌ فشل التحقق! وجه الشخص الحالي لا يطابق الموظف الأساسي (نسبة المطابقة: ${similarity.toFixed(1)}%). يرجى التأكد من التسجيل ووضوح الإضاءة.`);
                 document.getElementById('camStatusText').innerText = "فشل المطابقة، الوجه غير مطابق.";
             }
         } catch (e) {
@@ -598,3 +601,4 @@
 </script>
 </body>
 </html>
+ 
