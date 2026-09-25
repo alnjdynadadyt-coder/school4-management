@@ -122,9 +122,9 @@
         .then(stream => { videoElement.srcObject = stream; })
         .catch(err => { console.warn("تعذر تشغيل الكاميرا تلقائياً:", err); });
 
-    // دوال خوارزمية بصمة الصورة الخفيفة والسريعة جداً
+    // دوال خوارزمية بصمة الصورة المطورة والعميقة لمنع الخداع
     function generateImageHash(canvas) {
-        const size = 16; 
+        const size = 24; // دقة أعلى لالتقاط التفاصيل والتباين بدقة
         const smallCanvas = document.createElement('canvas');
         smallCanvas.width = size;
         smallCanvas.height = size;
@@ -132,16 +132,21 @@
         smallCtx.drawImage(canvas, 0, 0, size, size);
         const imgData = smallCtx.getImageData(0, 0, size, size).data;
         
-        let hash = [];
+        let grayValues = [];
         let sum = 0;
+        
         for (let i = 0; i < imgData.length; i += 4) {
-            let avg = (imgData[i] + imgData[i+1] + imgData[i+2]) / 3;
-            sum += avg;
-            hash.push(avg);
+            let gray = (imgData[i] * 0.299) + (imgData[i+1] * 0.587) + (imgData[i+2] * 0.114);
+            sum += gray;
+            grayValues.push(gray);
         }
-        let mean = sum / (imgData.length / 4);
-        let binaryHash = hash.map(val => val >= mean ? 1 : 0);
-        return binaryHash.join('');
+        
+        let mean = sum / grayValues.length;
+        let hash = [];
+        for (let i = 0; i < grayValues.length; i++) {
+            hash.push(grayValues[i] >= mean ? 1 : 0);
+        }
+        return hash.join('');
     }
 
     function compareImageHashes(hash1, hash2) {
@@ -162,8 +167,8 @@
         ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
         
         return {
-            base64: canvas.toDataURL('image/jpeg', 0.6), // صورة واضحة ومخففة الحجم للإدارة
-            hash: generateImageHash(canvas)              // البصمة الرقمية للمقارنة
+            base64: canvas.toDataURL('image/jpeg', 0.6),
+            hash: generateImageHash(canvas)
         };
     }
 
@@ -276,7 +281,7 @@
                 return;
             }
 
-            // التقاط صورة الوجه الحالية للتحقق السريع
+            // التقاط صورة الوجه الحالية للتحقق
             const currentCapture = captureFaceData();
 
             // إذا كانت المرة الأولى لتسجيل الموظف (لا يوجد صورة مخزنة بعد)
@@ -288,12 +293,12 @@
                 }, { merge: true });
                 alert("✨ تم ربط الهاتف وبصمة الوجه بنجاح لأول مرة!");
             } else {
-                // مقارنة البصمة الحالية مع البصمة المخزنة لمنع احتيال تسليم الهاتف
+                // مقارنة البصمة الحالية مع البصمة المخزنة بنسبة دقة عالية لمنع الاحتيال
                 const similarity = compareImageHashes(empData.imageHash, currentCapture.hash);
-                if (similarity < 65) { // نسبة مقبولة للمطابقة السريعة الخفيفة
+                if (similarity < 82) { // تم رفع نسبة الحساسية لمنع أي شخص آخر من التسجيل مكانك
                     msgDiv.style.background = "#f8d7da";
                     msgDiv.style.color = "#721c24";
-                    msgDiv.innerHTML = "❌ فشل التحقق! وجه الشخص الحالي لا يتطابق مع صاحب الحساب الأساسي.";
+                    msgDiv.innerHTML = "❌ فشل التحقق! وجه الشخص الحالي لا يتطابق بدقة مع صاحب الحساب الأساسي.";
                     return;
                 }
             }
@@ -411,3 +416,4 @@
 </script>
 </body>
 </html>
+ 
