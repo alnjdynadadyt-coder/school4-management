@@ -88,8 +88,8 @@
         <p id="camEmpTarget" style="font-weight: bold; color: #555; margin-bottom: 10px;"></p>
         <video id="verificationVideo" autoplay playsinline muted></video>
         <p id="camStatusText" style="font-size: 13px; color: #666; margin-top: 8px;">يرجى النظر للكاميرا والثبات...</p>
-        <button class="cam-btn" onclick="captureAndVerifyFace()">التقاط والتحقق</button>
-        <button class="cam-cancel-btn" onclick="closeFaceModal()">إلغاء</button>
+        <button class="cam-btn" id="confirmVerificationBtn">التقاط والتحقق</button>
+        <button class="cam-cancel-btn" id="cancelVerificationBtn">إلغاء</button>
     </div>
 </div>
 
@@ -244,7 +244,7 @@
         }
 
         if (action === 'attendance' || action === 'exit') {
-            pendingActionData = { code, name, type, action, timeInput };
+            pendingActionData = { code: String(code), name, type, action, timeInput };
             document.getElementById('camModalTitle').innerText = action === 'attendance' ? "التحقق للـحضور" : "التحقق للـانصراف";
             document.getElementById('camEmpTarget').innerText = `الموظف: ${name}`;
             document.getElementById('faceVerificationModal').style.display = 'flex';
@@ -274,8 +274,16 @@
         pendingActionData = null;
     };
 
-    window.captureAndVerifyFace = async () => {
-        if (!pendingActionData) return;
+    // ربط الأزرار مباشرة لمنع فقدان البيانات وضمان استقرار النطاق البرمجي (Scope)
+    document.getElementById('cancelVerificationBtn').onclick = window.closeFaceModal;
+    
+    document.getElementById('confirmVerificationBtn').onclick = async () => {
+        if (!pendingActionData) {
+            alert("حدث خطأ: بيانات العملية غير موجودة، يرجى إعادة محاولة الضغط على زر الحضور.");
+            window.closeFaceModal();
+            return;
+        }
+
         const canvas = document.getElementById('verificationCanvas');
         canvas.width = 150;
         canvas.height = 150;
@@ -286,19 +294,19 @@
         document.getElementById('camStatusText').innerText = "جاري التحقق من بصمة الوجه...";
 
         try {
-            const empDocRef = doc(db, "employees", String(pendingActionData.code));
+            const empDocRef = doc(db, "employees", pendingActionData.code);
             const empSnap = await getDoc(empDocRef);
 
             if (!empSnap.exists()) {
                 alert("كود الموظف غير موجود في قاعدة بيانات الموظفين!");
-                closeFaceModal();
+                window.closeFaceModal();
                 return;
             }
 
             const empData = empSnap.data();
             if (!empData.imageHash) {
                 alert("لم يتم العثور على بصمة وجه مسجلة لهذا الموظف في النظام! يرجى إعادة تسجيل بصمته من صفحة الموظفين أولاً.");
-                closeFaceModal();
+                window.closeFaceModal();
                 return;
             }
 
@@ -306,19 +314,29 @@
             console.log("نسبة المطابقة للوجه:", similarity);
 
             if (similarity >= 82) {
-                closeFaceModal();
-                const { code, name, type, action, timeInput } = pendingActionData;
+                const currentActionData = { ...pendingActionData };
+                window.closeFaceModal();
 
-                if (action === 'attendance') {
-                    let status = (timeInput > getLimit(type, timeInput)) ? "متأخر" : "حاضر";
-                    await addDoc(collection(db, "attendance"), { empCode: code, name, status, time: timeInput, exitTime: "", date: selectedDateStr, day: selectedDayNameStr, reason: "", leaveImage: "" });
-                    alert(`✅ تم التحقق بنجاح! تسجيل حضور (${name})`);
-                } else if (action === 'exit') {
-                    const q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", selectedDateStr));
+                if (currentActionData.action === 'attendance') {
+                    let status = (currentActionData.timeInput > getLimit(currentActionData.type, currentActionData.timeInput)) ? "متأخر" : "حاضر";
+                    await addDoc(collection(db, "attendance"), { 
+                        empCode: currentActionData.code, 
+                        name: currentActionData.name, 
+                        status, 
+                        time: currentActionData.timeInput, 
+                        exitTime: "", 
+                        date: selectedDateStr, 
+                        day: selectedDayNameStr, 
+                        reason: "", 
+                        leaveImage: "" 
+                    });
+                    alert(`✅ تم التحقق بنجاح! تسجيل حضور (${currentActionData.name})`);
+                } else if (currentActionData.action === 'exit') {
+                    const q = query(collection(db, "attendance"), where("empCode", "==", currentActionData.code), where("date", "==", selectedDateStr));
                     const snap = await getDocs(q);
                     if (!snap.empty) {
-                        await setDoc(doc(db, 'attendance', snap.docs[0].id), { exitTime: timeInput }, { merge: true });
-                        alert(`✅ تم التحقق بنجاح! تسجيل انصراف (${name})`);
+                        await setDoc(doc(db, 'attendance', snap.docs[0].id), { exitTime: currentActionData.timeInput }, { merge: true });
+                        alert(`✅ تم التحقق بنجاح! تسجيل انصراف (${currentActionData.name})`);
                     }
                 }
                 loadEmployees();
@@ -329,7 +347,7 @@
         } catch (e) {
             console.error("Firebase Error details:", e);
             alert("حدث خطأ أثناء الاتصال بقاعدة البيانات للتحقق: " + e.message);
-            closeFaceModal();
+            window.closeFaceModal();
         }
     };
 
