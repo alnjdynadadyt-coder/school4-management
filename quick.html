@@ -179,7 +179,6 @@
     let pendingActionData = null;
     let mediaStream = null;
 
-    // خوارزمية حساب الـ Hash والمقارنة بالمسافة (Hamming distance)
     function computeImageHashFromCanvas(canvas) {
         const ctx = canvas.getContext('2d');
         const w = 24;
@@ -219,7 +218,6 @@
         return (same / h1.length) * 100;
     }
 
-    // فتح نافذة الكاميرا للتحقق
     window.quickAction = async (code, name, type, action) => {
         const timeInput = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', hour12: false, timeZone: 'Asia/Baghdad'});
         
@@ -245,7 +243,6 @@
             }
         }
 
-        // إذا كان الإجراء حضور أو انصراف -> نفتح كاميرا التحقق
         if (action === 'attendance' || action === 'exit') {
             pendingActionData = { code, name, type, action, timeInput };
             document.getElementById('camModalTitle').innerText = action === 'attendance' ? "التحقق للـحضور" : "التحقق للـانصراف";
@@ -255,7 +252,6 @@
             return;
         }
 
-        // الأجراءات الأخرى (مجاز، غائب، منسب) لا تتطلب كاميرا
         if (action === 'excused') {
             if (!snap.empty) { alert("الموظف مسجل بالفعل لهذا التاريخ!"); return; }
             activeEmpForLeave = { id: code, name: name, type: type };
@@ -298,31 +294,36 @@
         if (!pendingActionData) return;
         const video = document.getElementById('verificationVideo');
         const canvas = document.getElementById('verificationCanvas');
-        canvas.width = video.videoWidth || 320;
-        canvas.height = video.videoHeight || 240;
+        
+        // التحقق من جاهزية أبعاد الفيديو لتجنب لقطة فارغة أو سوداء
+        if (!video.videoWidth || !video.videoHeight) {
+            alert("الكاميرا لم تعمل بشكل كامل بعد، انتظر ثانية واحدة ثم حاول مرة أخرى.");
+            return;
+        }
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         const currentHash = computeImageHashFromCanvas(canvas);
-
         document.getElementById('camStatusText').innerText = "جاري التحقق من بصمة الوجه...";
 
         try {
-            // جلب بيانات الموظف من المستند الخاص به في قاعدة البيانات
             const empDocRef = doc(db, "employees", pendingActionData.code);
             const empSnap = await getDoc(empDocRef);
 
             if (!empSnap.exists() || !empSnap.data().imageHash) {
-                alert("لم يتم العثور على بصمة وجه مسجلة لهذا الموظف في النظام!");
+                alert("لم يتم العثور على بصمة وجه مسجلة لهذا الموظف في النظام! يرجى إعادة تسجيل بصمته من صفحة الموظفين أولاً.");
                 closeFaceModal();
                 return;
             }
 
             const storedHash = empSnap.data().imageHash;
             const similarity = compareHashes(currentHash, storedHash);
+            console.log("نسبة المطابقة للوجه:", similarity);
 
             if (similarity >= 82) {
-                // نجاح التحقق
                 closeFaceModal();
                 const { code, name, type, action, timeInput } = pendingActionData;
 
