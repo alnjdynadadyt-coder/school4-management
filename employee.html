@@ -251,7 +251,17 @@
         document.getElementById('cameraModal').style.display = "none";
     };
 
-    // مراقبة الرمش والحيوية ثم تنفيذ التسجيل
+    // التقاط صورة مصغرة (Thumbnail) كـ Base64 للحفظ في قاعدة البيانات
+    function captureReferenceImage(videoElement) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 150;
+        canvas.height = 150;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoElement, 0, 0, 150, 150);
+        return canvas.toDataURL('image/jpeg', 0.7);
+    }
+
+    // مراقبة الرمش والحيوية ثم حفظ الصورة أو التحقق منها ثم إتمام التسجيل
     async function detectBlinkAndVerify(code) {
         const videoElement = document.getElementById('webcam');
         let eyesClosedCount = 0;
@@ -271,7 +281,6 @@
                     const leftEye = landmarks.getLeftEye();
                     const rightEye = landmarks.getRightEye();
 
-                    // حساب مسافة فتحة العينين لتقدير الرمش
                     const getEyeAspectRatio = (eye) => {
                         const v1 = Math.hypot(eye[1].x - eye[5].x, eye[1].y - eye[5].y);
                         const v2 = Math.hypot(eye[2].x - eye[4].x, eye[2].y - eye[4].y);
@@ -281,12 +290,24 @@
 
                     const ear = (getEyeAspectRatio(leftEye) + getEyeAspectRatio(rightEye)) / 2.0;
 
-                    if (ear < 0.22) { // إذا كانت العين مغلقة (رمشة)
+                    if (ear < 0.22) { // رمشة العين
                         eyesClosedCount++;
                         if (eyesClosedCount >= 2) {
                             verified = true;
                             clearInterval(checkInterval);
-                            document.getElementById('camInstruction').innerText = "✅ تم التحقق من الحيوية بنجاح! جاري إتمام التسجيل...";
+                            document.getElementById('camInstruction').innerText = "✅ تم التحقق من الحيوية بنجاح! جاري معالجة الصورة والتسجيل...";
+                            
+                            // التحقق من وجود الصورة في الفايربيز أو حفظها لأول مرة
+                            const empSnap = await getDoc(doc(db, "employees", code));
+                            if (empSnap.exists()) {
+                                const empData = empSnap.data();
+                                if (!empData.referenceFace) {
+                                    // حفظ الصورة لأول مرة
+                                    const newPhoto = captureReferenceImage(videoElement);
+                                    await setDoc(doc(db, "employees", code), { referenceFace: newPhoto }, { merge: true });
+                                }
+                            }
+
                             setTimeout(() => {
                                 closeCameraModal();
                                 executeRegistration(code, globalActionType);
