@@ -146,7 +146,6 @@
     let selectedDateStr = todayStr;
     let selectedDayNameStr = "";
 
-    // تشغيل الكاميرا في الخلفية بصمت لتكون جاهزة دائماً تماماً مثل التسجيل الخارجي
     const verificationVideo = document.getElementById('verificationVideo');
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
         .then(stream => { verificationVideo.srcObject = stream; })
@@ -184,7 +183,6 @@
     let attendanceMap = {};
     let pendingActionData = null;
 
-    // دوال بصمة الوجه المطورة والمطابقة للكود الخارجي الناجح
     function generateImageHash(canvas) {
         const size = 24;
         const smallCanvas = document.createElement('canvas');
@@ -288,17 +286,23 @@
         document.getElementById('camStatusText').innerText = "جاري التحقق من بصمة الوجه...";
 
         try {
-            const empDocRef = doc(db, "employees", pendingActionData.code);
+            const empDocRef = doc(db, "employees", String(pendingActionData.code));
             const empSnap = await getDoc(empDocRef);
 
-            if (!empSnap.exists() || !empSnap.data().imageHash) {
+            if (!empSnap.exists()) {
+                alert("كود الموظف غير موجود في قاعدة بيانات الموظفين!");
+                closeFaceModal();
+                return;
+            }
+
+            const empData = empSnap.data();
+            if (!empData.imageHash) {
                 alert("لم يتم العثور على بصمة وجه مسجلة لهذا الموظف في النظام! يرجى إعادة تسجيل بصمته من صفحة الموظفين أولاً.");
                 closeFaceModal();
                 return;
             }
 
-            const storedHash = empSnap.data().imageHash;
-            const similarity = compareImageHashes(storedHash, currentHash);
+            const similarity = compareImageHashes(empData.imageHash, currentHash);
             console.log("نسبة المطابقة للوجه:", similarity);
 
             if (similarity >= 82) {
@@ -323,8 +327,8 @@
                 document.getElementById('camStatusText').innerText = "فشل التطابق، حاول مرة أخرى.";
             }
         } catch (e) {
-            console.error(e);
-            alert("حدث خطأ أثناء الاتصال بقاعدة البيانات للتحقق.");
+            console.error("Firebase Error details:", e);
+            alert("حدث خطأ أثناء الاتصال بقاعدة البيانات للتحقق: " + e.message);
             closeFaceModal();
         }
     };
