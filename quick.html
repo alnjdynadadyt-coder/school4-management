@@ -29,7 +29,7 @@
 
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
 
-        /* نافذة الكاميرا للتحقق بالوجه */
+        /* نافذة الكاميرا للتحقق أو التقاط البصمة الأولى */
         .camera-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 3000; justify-content: center; align-items: center; }
         .camera-modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
         .camera-modal-content video { width: 100%; max-height: 260px; border-radius: 8px; background: #000; object-fit: cover; }
@@ -83,7 +83,7 @@
     </table>
 </div>
 
-<!-- نافذة التحقق بالكاميرا للوجه -->
+<!-- نافذة التحقق والكاميرا -->
 <div id="faceVerificationModal" class="camera-modal-overlay">
     <div class="camera-modal-content">
         <h3 id="camModalTitle" style="color: #28a745; margin-top:0;">التحقق من بصمة الوجه</h3>
@@ -256,7 +256,7 @@
             variance += Math.pow(grayValues[i] - mean, 2);
         }
         let stdDev = Math.sqrt(variance / grayValues.length);
-        if (stdDev < 10) { // خفضنا القليل لتجنب رفض الإضاءات الطبيعية المقبولة
+        if (stdDev < 10) {
             return null;
         }
 
@@ -304,7 +304,7 @@
         if (action === 'attendance' || action === 'exit') {
             pendingActionData = { code: String(code), name, type, action, timeInput };
             document.getElementById('camModalTitle').innerText = action === 'attendance' ? "التحقق للـحضور" : "التحقق للـانصراف";
-            document.getElementById('camEmpTarget', name).innerText = `الموظف: ${name}`;
+            document.getElementById('camEmpTarget').innerText = `الموظف: ${name}`;
             document.getElementById('faceVerificationModal').style.display = 'flex';
             startCamera();
             return;
@@ -354,12 +354,12 @@
         const currentHash = generateAdvancedFaceHash(canvas);
         
         if (!currentHash) {
-            alert("❌ فشل التقاط الوجه بوضوح! يبدو أن الصورة مظلمة جداً. يرجى تعديل الإضاءة والتركيز أمام العدسة.");
+            alert("❌ فشل التقاط الوجه بوضوح! يرجى تعديل الإضاءة والتركيز أمام العدسة.");
             document.getElementById('camStatusText').innerText = "تعذر التعرف على الوجه، حاول مرة أخرى.";
             return;
         }
 
-        document.getElementById('camStatusText').innerText = "جاري مطابقة بصمة الوجه الذكية...";
+        document.getElementById('camStatusText').innerText = "جاري التحقق أو حفظ البصمة...";
 
         try {
             const empDocRef = doc(db, "employees", pendingActionData.code);
@@ -373,17 +373,37 @@
 
             const empData = empSnap.data();
             
-            // التحقق من وجود بصمة مسجلة للموظف أساساً
+            // إذا لم يكن للموظف بصمة وجه مسجلة، نقوم بحفظ الصورة الحالية تلقائياً كبصمة أولى له (من التسجيل السريع)
             if (!empData.imageHash || empData.imageHash.trim() === "") {
-                alert(`⚠️ تنبيه: الموظف (${pendingActionData.name}) ليس لديه بصمة وجه مسجلة في قاعدة البيانات!\n\nيرجى الذهاب إلى صفحة إدارة الموظفين وتسجيل بصمة له أولاً لكي يعمل التحقق بشكل صحيح.`);
+                await setDoc(empDocRef, { imageHash: currentHash }, { merge: true });
+                alert(`✨ تم التقاط وتسجيل بصمة الوجه للموظف (${pendingActionData.name}) بنجاح لأول مرة!\n\nسيتم اعتماد هذه الصورة في المرات القادمة.`);
+                
+                const currentActionData = { ...pendingActionData };
                 window.closeFaceModal();
+
+                // إتمام عملية الحضور مباشرة بعد التسجيل الأول
+                if (currentActionData.action === 'attendance') {
+                    let status = (currentActionData.timeInput > getLimit(currentActionData.type, currentActionData.timeInput)) ? "متأخر" : "حاضر";
+                    await addDoc(collection(db, "attendance"), { 
+                        empCode: currentActionData.code, 
+                        name: currentActionData.name, 
+                        status, 
+                        time: currentActionData.timeInput, 
+                        exitTime: "", 
+                        date: selectedDateStr, 
+                        day: selectedDayNameStr, 
+                        reason: "", 
+                        leaveImage: "" 
+                    });
+                    alert(`✅ تم تسجيل حضور (${currentActionData.name}) بنجاح!`);
+                }
+                loadEmployees();
                 return;
             }
 
             const similarity = compareImageHashes(empData.imageHash, currentHash);
             console.log("نسبة المطابقة الذكية:", similarity);
 
-            // تم خفض عتبة القبول قليلاً إلى 65% لتجنب الرفض بسبب اختلاف الإضاءة البسيط أو الزاوية
             if (similarity >= 65) {
                 const currentActionData = { ...pendingActionData };
                 window.closeFaceModal();
@@ -412,10 +432,10 @@
                 }
                 loadEmployees();
             } else {
-                alert(`❌ فشل التحقق! وجه الشخص الحالي لا يطابق الموظف الأساسي (نسبة المطابقة: ${similarity.toFixed(1)}%). يرجى التأكد من التسجيل ووضوح الإضاءة.`);
+                alert(`❌ فشل التحقق! وجه الشخص الحالي لا يطابق الموظف الأساسي (نسبة المطابقة: ${similarity.toFixed(1)}%).`);
                 document.getElementById('camStatusText').innerText = "فشل المطابقة، الوجه غير مطابق.";
             }
-        } catch (e) {
+        } the catch (e) {
             console.error("Firebase Error details:", e);
             alert("حدث خطأ أثناء الاتصال بقاعدة البيانات للتحقق: " + e.message);
             window.closeFaceModal();
