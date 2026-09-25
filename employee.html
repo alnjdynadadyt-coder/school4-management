@@ -198,7 +198,6 @@
     let activeEmpCode = null;
     let modelsLoaded = false;
 
-    // تحميل نماذج مطابقة الوجوه (TinyFaceDetector + FaceLandmark + FaceRecognition)
     async function loadModels() {
         if (modelsLoaded) return;
         const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
@@ -267,7 +266,6 @@
         return canvas.toDataURL('image/jpeg', 0.8);
     }
 
-    // دالة مساعدة لتحويل Base64 إلى عنصر صورة (Image) لفحصها بواسطة face-api
     async function urlToImage(url) {
         return new Promise((resolve, reject) => {
             const img = new Image();
@@ -278,18 +276,26 @@
         });
     }
 
-    // الدالة الرئيسية لفحص المطابقة وحفظ أو مطابقة الوجه
     window.verifyAndRegister = async function() {
         const videoElement = document.getElementById('webcam');
         if (!mediaStream || !activeEmpCode) return;
 
         document.getElementById('camInstruction').innerText = "⏳ جاري تحليل ومطابقة الوجه بدقة...";
 
+        // مؤقت أمان لإلغاء التجميد إذا استغرقت العملية أكثر من 12 ثانية
+        let isTimedOut = false;
+        const timeoutTimer = setTimeout(() => {
+            isTimedOut = true;
+            alert("⚠️ استغرق التحليل وقتاً طويلاً. يرجى التأكد من الإضاءة الجيدة والوضوح، ثم حاول مرة أخرى.");
+            document.getElementById('camInstruction').innerText = "📍 انظر للكاميرا مباشرة ثم اضغط زر التحقق والتسجيل";
+        }, 12000);
+
         try {
             const empRef = doc(db, "employees", activeEmpCode);
             const empSnap = await getDoc(empRef);
 
             if (!empSnap.exists()) {
+                clearTimeout(timeoutTimer);
                 alert("❌ كود الموظف غير صحيح في قاعدة البيانات!");
                 closeCameraModal();
                 return;
@@ -297,8 +303,10 @@
 
             const empData = empSnap.data();
 
-            // استخراج بصمة الوجه (Face Descriptor) للشخص الواقف أمام الكاميرا الآن
             const currentDetection = await faceapi.detectSingleFace(videoElement, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+
+            if (isTimedOut) return;
+            clearTimeout(timeoutTimer);
 
             if (!currentDetection) {
                 alert("❌ لم يتم اكتشاف وجه بوضوح أمام الكاميرا، يرجى تعديل الإضاءة والاقتراب قليلاً.");
@@ -306,7 +314,6 @@
                 return;
             }
 
-            // الحالة الأولى: إذا لم تكن هناك صورة مرجعية محفوظة مسبقاً (أول تسجيل للموظف)
             if (!empData.referenceFace) {
                 const capturedPhoto = captureBase64(videoElement);
                 await setDoc(empRef, { referenceFace: capturedPhoto }, { merge: true });
@@ -315,12 +322,10 @@
                 return;
             }
 
-            // الحالة الثانية: الموظف لديه صورة مرجعية مخزنة -> يجب مطابقة الوجه الحالي معها!
             const referenceImgElement = await urlToImage(empData.referenceFace);
             const refDetection = await faceapi.detectSingleFace(referenceImgElement, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
 
             if (!refDetection) {
-                // إذا حدث خطأ في قراءة الصورة القديمة، نحدثها بالصورة الجديدة
                 const capturedPhoto = captureBase64(videoElement);
                 await setDoc(empRef, { referenceFace: capturedPhoto }, { merge: true });
                 closeCameraModal();
@@ -328,25 +333,21 @@
                 return;
             }
 
-            // حساب نسبة المسافة (Euclidean Distance) بين الوجه الحالي والوجه المخزني
             const distance = faceapi.euclideanDistance(currentDetection.descriptor, refDetection.descriptor);
-            
-            // الحد الفاصل للمطابقة (أقل من 0.6 يعني نفس الشخص، أكثر من ذلك فهو شخص غريب أو مختلف)
             console.log("Face Match Distance:", distance);
 
             if (distance < 0.6) {
-                // مطابقة ناجحة 100%
                 closeCameraModal();
                 executeFullRegistration(activeEmpCode, globalActionType, empData);
             } else {
-                // الوجه غير مطابق لصاحب الكود!
                 alert("❌ عذراً! الوجه الظاهر أمام الكاميرا لا يطابق بصمة وجه الموظف صاحب هذا الكود.");
                 document.getElementById('camInstruction').innerText = "📍 فشل التحقق: الشخص غير مطابق. حاول مرة أخرى";
             }
 
         } catch (e) {
+            clearTimeout(timeoutTimer);
             console.error(e);
-            alert("❌ حدث خطأ أثناء معالجة بصمة الوجه، حاول مرة أخرى.");
+            alert("❌ حدث خطأ تقني أثناء معالجة بصمة الوجه، حاول مرة أخرى.");
             closeCameraModal();
         }
     };
