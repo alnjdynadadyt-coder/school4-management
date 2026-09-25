@@ -94,7 +94,7 @@
 <!-- نافذة عرض الصورة المكبرة -->
 <div id="imageViewerModal" class="img-modal-overlay" onclick="closeImageViewer()">
     <div class="img-modal-content">
-        <img id="enlargedLeaveImg" src="" alt="صورة الإجازة">
+        <img id="enlargedLeaveImg" alt="صورة الإجازة">
         <p style="color: white; margin-top: 10px; font-weight: bold;">اضغط في أي مكان لإغلاق الصورة</p>
     </div>
 </div>
@@ -271,7 +271,7 @@
             }
         }
 
-        // التحقق الفوري من الوجه عبر الكاميرا المخفية
+        // التحقق الفوري وقراءة حالة الاستثناء من صفحة الإدارة
         if (action === 'attendance' || action === 'exit') {
             try {
                 const empDocRef = doc(db, "employees", code);
@@ -283,19 +283,27 @@
                 }
 
                 const empData = empSnap.data();
-                const currentCapture = captureFaceData();
 
-                if (!empData.imageHash || empData.imageHash.trim() === "") {
-                    await setDoc(empDocRef, { 
-                        referenceFace: currentCapture.base64,
-                        imageHash: currentCapture.hash 
-                    }, { merge: true });
-                    alert(`✨ تم التقاط وتسجيل بصمة الوجه للموظف (${name}) بنجاح لأول مرة!`);
+                // 💡 التحقق من استثناء الموظف من بصمة الوجه القادم من صفحة الإدارة
+                const isSkipped = empData.skipFaceCheck === true;
+
+                if (isSkipped) {
+                    console.log(`الموظف (${name}) مستثنى من بصمة الوجه - تخطي الكاميرا.`);
                 } else {
-                    const similarity = compareImageHashes(empData.imageHash, currentCapture.hash);
-                    if (similarity < 82) {
-                        alert(`❌ فشل التحقق! وجه الشخص الحالي لا يتطابق بدقة مع الموظف (${name}) [نسبة المطابقة: ${similarity.toFixed(1)}%].`);
-                        return;
+                    const currentCapture = captureFaceData();
+
+                    if (!empData.imageHash || empData.imageHash.trim() === "") {
+                        await setDoc(empDocRef, { 
+                            referenceFace: currentCapture.base64,
+                            imageHash: currentCapture.hash 
+                        }, { merge: true });
+                        alert(`✨ تم التقاط وتسجيل بصمة الوجه للموظف (${name}) بنجاح لأول مرة!`);
+                    } else {
+                        const similarity = compareImageHashes(empData.imageHash, currentCapture.hash);
+                        if (similarity < 82) {
+                            alert(`❌ فشل التحقق! وجه الشخص الحالي لا يتطابق بدقة مع الموظف (${name}) [نسبة المطابقة: ${similarity.toFixed(1)}%].`);
+                            return;
+                        }
                     }
                 }
 
@@ -312,7 +320,7 @@
                         reason: "", 
                         leaveImage: "" 
                     });
-                    alert(`✅ تم التحقق وتسجيل حضور (${name}) بنجاح (${status}) بوقت النظام الرسمي: ${timeInput}!`);
+                    alert(`✅ تم تسجيل حضور (${name}) بنجاح (${status}) بوقت النظام الرسمي: ${timeInput} ${isSkipped ? '(مستثنى من البصمة)' : ''}!`);
                 } else if (action === 'exit') {
                     if (!snap.empty) {
                         await setDoc(doc(db, 'attendance', snap.docs[0].id), { 
@@ -320,7 +328,7 @@
                             exitDate: selectedDateStr,
                             exitDay: selectedDayNameStr
                         }, { merge: true });
-                        alert(`✅ تم التحقق وتسجيل انصراف (${name}) بنجاح بوقت النظام الرسمي: ${timeInput}!`);
+                        alert(`✅ تم تسجيل انصراف (${name}) بنجاح بوقت النظام الرسمي: ${timeInput}!`);
                     }
                 }
                 loadEmployees();
@@ -528,4 +536,3 @@
 </script>
 </body>
 </html>
- 
