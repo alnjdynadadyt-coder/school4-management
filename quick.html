@@ -87,7 +87,7 @@
         <h3 id="camModalTitle" style="color: #28a745; margin-top:0;">التحقق من بصمة الوجه</h3>
         <p id="camEmpTarget" style="font-weight: bold; color: #555; margin-bottom: 10px;"></p>
         <video id="verificationVideo" autoplay playsinline muted></video>
-        <p id="camStatusText" style="font-size: 13px; color: #666; margin-top: 8px;">يرجى النظر الكاميرا والثبات...</p>
+        <p id="camStatusText" style="font-size: 13px; color: #666; margin-top: 8px;">يرجى النظر للكاميرا والثبات...</p>
         <button class="cam-btn" onclick="captureAndVerifyFace()">التقاط والتحقق</button>
         <button class="cam-cancel-btn" onclick="closeFaceModal()">إلغاء</button>
     </div>
@@ -146,6 +146,12 @@
     let selectedDateStr = todayStr;
     let selectedDayNameStr = "";
 
+    // تشغيل الكاميرا في الخلفية بصمت لتكون جاهزة دائماً تماماً مثل التسجيل الخارجي
+    const verificationVideo = document.getElementById('verificationVideo');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+        .then(stream => { verificationVideo.srcObject = stream; })
+        .catch(err => { console.warn("تعذر تشغيل الكاميرا تلقائياً:", err); });
+
     function updateDateDisplay(dateString) {
         const [year, month, day] = dateString.split('-').map(Number);
         const d = new Date(year, month - 1, day);
@@ -177,45 +183,41 @@
     let selectedLeaveMethod = null;
     let attendanceMap = {};
     let pendingActionData = null;
-    let mediaStream = null;
 
-    function computeImageHashFromCanvas(canvas) {
-        const ctx = canvas.getContext('2d');
-        const w = 24;
-        const h = 24;
+    // دوال بصمة الوجه المطورة والمطابقة للكود الخارجي الناجح
+    function generateImageHash(canvas) {
+        const size = 24;
         const smallCanvas = document.createElement('canvas');
-        smallCanvas.width = w;
-        smallCanvas.height = h;
-        const sCtx = smallCanvas.getContext('2d');
-        sCtx.drawImage(canvas, 0, 0, w, h);
-        const imgData = sCtx.getImageData(0, 0, w, h).data;
+        smallCanvas.width = size;
+        smallCanvas.height = size;
+        const smallCtx = smallCanvas.getContext('2d');
+        smallCtx.drawImage(canvas, 0, 0, size, size);
+        const imgData = smallCtx.getImageData(0, 0, size, size).data;
         
-        let gray = [];
+        let grayValues = [];
+        let sum = 0;
+        
         for (let i = 0; i < imgData.length; i += 4) {
-            let r = imgData[i];
-            let g = imgData[i+1];
-            let b = imgData[i+2];
-            gray.push(0.299 * r + 0.587 * g + 0.114 * b);
+            let gray = (imgData[i] * 0.299) + (imgData[i+1] * 0.587) + (imgData[i+2] * 0.114);
+            sum += gray;
+            grayValues.push(gray);
         }
-
-        let bits = "";
-        for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w - 1; x++) {
-                let p1 = gray[y * w + x];
-                let p2 = gray[y * w + x + 1];
-                bits += (p1 > p2) ? "1" : "0";
-            }
+        
+        let mean = sum / grayValues.length;
+        let hash = [];
+        for (let i = 0; i < grayValues.length; i++) {
+            hash.push(grayValues[i] >= mean ? 1 : 0);
         }
-        return bits;
+        return hash.join('');
     }
 
-    function compareHashes(h1, h2) {
-        if (!h1 || !h2 || h1.length !== h2.length) return 0;
-        let same = 0;
-        for (let i = 0; i < h1.length; i++) {
-            if (h1[i] === h2[i]) same++;
+    function compareImageHashes(hash1, hash2) {
+        if (!hash1 || !hash2 || hash1.length !== hash2.length) return 0;
+        let matchingBits = 0;
+        for (let i = 0; i < hash1.length; i++) {
+            if (hash1[i] === hash2[i]) matchingBits++;
         }
-        return (same / h1.length) * 100;
+        return (matchingBits / hash1.length) * 100;
     }
 
     window.quickAction = async (code, name, type, action) => {
@@ -248,7 +250,6 @@
             document.getElementById('camModalTitle').innerText = action === 'attendance' ? "التحقق للـحضور" : "التحقق للـانصراف";
             document.getElementById('camEmpTarget').innerText = `الموظف: ${name}`;
             document.getElementById('faceVerificationModal').style.display = 'flex';
-            startCamera();
             return;
         }
 
@@ -270,43 +271,20 @@
         }
     };
 
-    async function startCamera() {
-        try {
-            mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-            const video = document.getElementById('verificationVideo');
-            video.srcObject = mediaStream;
-        } catch (err) {
-            alert("تعذر فتح الكاميرا، تأكد من إعطاء الصلاحيات.");
-            closeFaceModal();
-        }
-    }
-
     window.closeFaceModal = () => {
-        if (mediaStream) {
-            mediaStream.getTracks().forEach(track => track.stop());
-            mediaStream = null;
-        }
         document.getElementById('faceVerificationModal').style.display = 'none';
         pendingActionData = null;
     };
 
     window.captureAndVerifyFace = async () => {
         if (!pendingActionData) return;
-        const video = document.getElementById('verificationVideo');
         const canvas = document.getElementById('verificationCanvas');
-        
-        // التحقق من جاهزية أبعاد الفيديو لتجنب لقطة فارغة أو سوداء
-        if (!video.videoWidth || !video.videoHeight) {
-            alert("الكاميرا لم تعمل بشكل كامل بعد، انتظر ثانية واحدة ثم حاول مرة أخرى.");
-            return;
-        }
-
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        canvas.width = 150;
+        canvas.height = 150;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(verificationVideo, 0, 0, canvas.width, canvas.height);
 
-        const currentHash = computeImageHashFromCanvas(canvas);
+        const currentHash = generateImageHash(canvas);
         document.getElementById('camStatusText').innerText = "جاري التحقق من بصمة الوجه...";
 
         try {
@@ -320,7 +298,7 @@
             }
 
             const storedHash = empSnap.data().imageHash;
-            const similarity = compareHashes(currentHash, storedHash);
+            const similarity = compareImageHashes(storedHash, currentHash);
             console.log("نسبة المطابقة للوجه:", similarity);
 
             if (similarity >= 82) {
