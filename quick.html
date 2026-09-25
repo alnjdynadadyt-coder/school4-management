@@ -313,7 +313,7 @@
             const similarity = compareImageHashes(empData.imageHash, currentHash);
             console.log("نسبة المطابقة للوجه:", similarity);
 
-            if (similarity >= 82) {
+            if (similarity >= 75) {
                 const currentActionData = { ...pendingActionData };
                 window.closeFaceModal();
 
