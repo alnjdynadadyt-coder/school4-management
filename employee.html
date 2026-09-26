@@ -41,6 +41,12 @@
         .info-row { display: flex; justify-content: space-between; margin: 10px 0; font-size: 15px; border-bottom: 1px dashed #eee; padding-bottom: 5px; }
         .info-label { font-weight: bold; color: #444; }
         .info-value { color: #111; font-weight: bold; }
+
+        /* نافذة معاينة الكاميرا الأولى للموظف الجديد */
+        .camera-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 3000; justify-content: center; align-items: center; }
+        .camera-modal-content { background: white; padding: 20px; border-radius: 15px; width: 90%; max-width: 360px; text-align: center; box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
+        .camera-modal-content video { width: 100%; max-height: 280px; border-radius: 10px; object-fit: cover; background: #000; transform: scaleX(-1); }
+        .btn-capture-face { background: #27ae60; color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: bold; margin-top: 15px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -61,9 +67,19 @@
         </div>
     </div>
 
-    <!-- عناصر الكاميرا المخفية للتقاط الصورة السريعة وبصمة التحقق -->
+    <!-- عناصر الكاميرا للتشغيل الخلفي والظهور عند الحاجة -->
     <video id="webcamVideo" autoplay playsinline style="display:none;"></video>
     <canvas id="snapshotCanvas" style="display:none;"></canvas>
+
+    <!-- نافذة معاينة الكاميرا لتسجيل البصمة لأول مرة -->
+    <div id="cameraModal" class="camera-modal-overlay">
+        <div class="camera-modal-content">
+            <h3 style="color: #2c3e50; margin-top: 0; font-size: 18px;">📸 ربط بصمة الوجه لأول مرة</h3>
+            <p style="font-size: 13px; color: #666; margin-bottom: 10px;">يرجى توجيه الكاميرا نحو وجهك بوضوح ثم اضغط زر التقاط وتأكيد:</p>
+            <video id="modalWebcamVideo" autoplay playsinline></video>
+            <button class="btn-capture-face" onclick="confirmFirstTimeFace()">التقاط وتأكيد الصورة ✨</button>
+        </div>
+    </div>
 
     <!-- بطاقة عرض بيانات الموظف -->
     <div id="employeeCard" class="info-card">
@@ -118,8 +134,13 @@
 
     // تشغيل الكاميرا الأمامية بصمت في الخلفية
     const videoElement = document.getElementById('webcamVideo');
+    const modalVideoElement = document.getElementById('modalWebcamVideo');
+    
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
-        .then(stream => { videoElement.srcObject = stream; })
+        .then(stream => { 
+            videoElement.srcObject = stream; 
+            modalVideoElement.srcObject = stream;
+        })
         .catch(err => { console.warn("تعذر تشغيل الكاميرا تلقائياً:", err); });
 
     function generateImageHash(canvas) {
@@ -157,12 +178,12 @@
         return (matchingBits / hash1.length) * 100;
     }
 
-    function captureFaceData() {
+    function captureFaceData(sourceVideo = videoElement) {
         const canvas = document.getElementById('snapshotCanvas');
         canvas.width = 150;
         canvas.height = 150;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(sourceVideo, 0, 0, canvas.width, canvas.height);
         
         return {
             base64: canvas.toDataURL('image/jpeg', 0.6),
@@ -229,6 +250,8 @@
         return "08:10";
     };
 
+    let pendingActionData = null;
+
     window.registerAction = async (action) => {
         if (!isLocationVerified) {
             alert("❌ لا يمكن التسجيل لأن الموقع الجغرافي غير مؤكد أو أنك خارج النطاق!");
@@ -258,13 +281,11 @@
             }
             const empData = empSnap.data();
 
-            // 💡 التحقق من استثناء الموظف من بصمة الوجه
             const isSkipped = empData.skipFaceCheck === true;
 
             if (isSkipped) {
                 console.log("الموظف مستثنى من بصمة الوجه - تخطي الكاميرا.");
             } else {
-                // فحص بصمة الجهاز للموظفين العاديين فقط
                 const qDev = query(collection(db, "employees"), where("deviceId", "==", deviceId));
                 const devSnap = await getDocs(qDev);
                 let ownerEmpCode = null;
@@ -284,17 +305,14 @@
                     return;
                 }
 
-                // التقاط صورة الوجه الحالية للتحقق
-                const currentCapture = captureFaceData();
-
+                // 💡 إذا كانت المرة الأولى ولا توجد بصمة مخزنة: افتح نافذة الكاميرا المرئية للموظف ليرى وجهه
                 if (!empData.referenceFace || !empData.imageHash) {
-                    await setDoc(doc(db, "employees", code), { 
-                        deviceId: deviceId,
-                        referenceFace: currentCapture.base64,
-                        imageHash: currentCapture.hash
-                    }, { merge: true });
-                    alert("✨ تم ربط الهاتف وبصمة الوجه بنجاح لأول مرة!");
+                    pendingActionData = { code, action, empData };
+                    document.getElementById('cameraModal').style.display = 'flex';
+                    msgDiv.innerHTML = "📸 يرجى تأكيد التقاط صورتك في النافذة الظاهرة أمامك لأول مرة.";
+                    return;
                 } else {
+                    const currentCapture = captureFaceData(videoElement);
                     const similarity = compareImageHashes(empData.imageHash, currentCapture.hash);
                     if (similarity < 82) {
                         msgDiv.style.background = "#f8d7da";
@@ -305,108 +323,7 @@
                 }
             }
 
-            const serverTime = await getSecureServerTime();
-            const nowTime = serverTime.timeStr;
-            const currentDate = serverTime.dateStr;
-            const currentDayName = serverTime.dayName;
-
-            const qAtt = query(collection(db, "attendance"), where("empCode", "==", code));
-            const snapAtt = await getDocs(qAtt);
-            let targetDoc = null;
-            let existingData = null;
-
-            if (!snapAtt.empty) {
-                let docsList = snapAtt.docs.map(d => ({ id: d.id, ...d.data() }));
-                docsList.sort((a, b) => new Date(b.date) - new Date(a.date));
-                let openRecord = docsList.find(d => !d.exitTime || d.exitTime === "" || d.exitTime === "---");
-                if (openRecord) { targetDoc = openRecord; existingData = openRecord; }
-                else if (docsList.length > 0 && docsList[0].date === currentDate) { targetDoc = snapAtt.docs.find(d => d.id === docsList[0].id); existingData = docsList[0]; }
-            }
-
-            if (action === 'attendance') {
-                if (existingData && existingData.date === currentDate && existingData.time && existingData.time !== "" && existingData.time !== "---") {
-                    msgDiv.style.background = "#fff3cd";
-                    msgDiv.style.color = "#856404";
-                    msgDiv.innerHTML = "⚠️ لقد قمت بتسجيل الحضور مسبقاً اليوم!";
-                    
-                    document.getElementById('cardEmpName').innerText = empData.name;
-                    document.getElementById('cardDate').innerText = `${existingData.day || ''} - ${existingData.date}`;
-                    document.getElementById('cardTime').innerText = existingData.time;
-                    document.getElementById('cardExit').innerText = existingData.exitTime || "---";
-                    document.getElementById('exitRow').style.display = "none";
-                    document.getElementById('cardStatus').innerText = existingData.status;
-                    document.getElementById('employeeCard').style.display = "block";
-                    return;
-                }
-
-                let status = (nowTime > getLimit(empData.type, nowTime)) ? "متأخر" : "حاضر";
-                
-                await addDoc(collection(db, "attendance"), {
-                    empCode: code,
-                    name: empData.name,
-                    status,
-                    time: nowTime,
-                    exitTime: "",
-                    date: currentDate,
-                    day: currentDayName,
-                    reason: "-"
-                });
-
-                msgDiv.style.background = "#e2f0d9";
-                msgDiv.style.color = "#385723";
-                msgDiv.innerHTML = "✅ تم تسجيل الحضور بنجاح كـ: " + status + (isSkipped ? " (مستثنى من البصمة)" : "");
-
-                document.getElementById('cardEmpName').innerText = empData.name;
-                document.getElementById('cardDate').innerText = `${currentDayName} - ${currentDate}`;
-                document.getElementById('cardTime').innerText = nowTime;
-                document.getElementById('cardExit').innerText = "---";
-                document.getElementById('exitRow').style.display = "none";
-                document.getElementById('cardStatus').innerText = status;
-                document.getElementById('cardStatus').style.color = (status === "متأخر") ? "#d9534f" : "#28a745";
-                document.getElementById('employeeCard').style.display = "block";
-
-            } else {
-                if (!existingData || (existingData.exitTime && existingData.exitTime !== "")) {
-                    msgDiv.style.background = "#fff3cd";
-                    msgDiv.style.color = "#856404";
-                    msgDiv.innerHTML = "⚠️ لا يوجد سجل حضور مفتوح للانصراف!";
-                    return;
-                }
-
-                if (["مدرس", "إداري", "موظف"].includes(empData.type)) {
-                    if (serverTime.totalMinutes < (10 * 60 + 30)) {
-                        msgDiv.style.background = "#f8d7da";
-                        msgDiv.style.color = "#721c24";
-                        msgDiv.innerHTML = `❌ عذراً، لا يمكن تسجيل الانصراف قبل الساعة 10:30 صباحاً! (الوقت الحالي: ${nowTime})`;
-                        return;
-                    }
-                }
-
-                await setDoc(doc(db, 'attendance', targetDoc.id), { 
-                    exitTime: nowTime,
-                    exitDate: currentDate,
-                    exitDay: currentDayName
-                }, { merge: true });
-
-                msgDiv.style.background = "#e2f0d9";
-                msgDiv.style.color = "#385723";
-                msgDiv.innerHTML = "✅ تم تسجيل الانصراف بنجاح تام!";
-
-                document.getElementById('cardEmpName').innerText = empData.name;
-                document.getElementById('cardDate').innerText = `${existingData.day || ''} - ${existingData.date}`;
-                document.getElementById('cardTime').innerText = existingData.time || "---";
-                document.getElementById('cardExit').innerText = nowTime;
-                
-                if (currentDate !== existingData.date) {
-                    document.getElementById('exitRow').style.display = "flex";
-                    document.getElementById('cardExitDate').innerText = `${currentDayName} - ${currentDate}`;
-                } else {
-                    document.getElementById('exitRow').style.display = "none";
-                }
-
-                document.getElementById('cardStatus').innerText = existingData.status || "حاضر";
-                document.getElementById('employeeCard').style.display = "block";
-            }
+            await executeRegistration(code, action, empData, isSkipped);
 
         } catch (err) {
             console.error(err);
@@ -415,6 +332,132 @@
             msgDiv.innerHTML = "❌ خطأ في الاتصال، حاول مرة أخرى.";
         }
     };
+
+    // دالة التقاط الصورة وتأكيدها من نافذة الموظف الجديدة لأول مرة
+    window.confirmFirstTimeFace = async () => {
+        if (!pendingActionData) return;
+        const { code, action, empData } = pendingActionData;
+
+        const currentCapture = captureFaceData(modalWebcamVideo);
+        
+        await setDoc(doc(db, "employees", code), { 
+            deviceId: deviceId,
+            referenceFace: currentCapture.base64,
+            imageHash: currentCapture.hash
+        }, { merge: true });
+
+        document.getElementById('cameraModal').style.display = 'none';
+        alert("✨ تم ربط الهاتف وبصمة الوجه بنجاح لأول مرة!");
+
+        await executeRegistration(code, action, empData, false);
+        pendingActionData = null;
+    };
+
+    // تنفيذ عملية الحضور والانصراف بعد اكتمال التحقق
+    async function executeRegistration(code, action, empData, isSkipped) {
+        const serverTime = await getSecureServerTime();
+        const nowTime = serverTime.timeStr;
+        const currentDate = serverTime.dateStr;
+        const currentDayName = serverTime.dayName;
+
+        const qAtt = query(collection(db, "attendance"), where("empCode", "==", code));
+        const snapAtt = await getDocs(qAtt);
+        let targetDoc = null;
+        let existingData = null;
+
+        if (!snapAtt.empty) {
+            let docsList = snapAtt.docs.map(d => ({ id: d.id, ...d.data() }));
+            docsList.sort((a, b) => new Date(b.date) - new Date(a.date));
+            let openRecord = docsList.find(d => !d.exitTime || d.exitTime === "" || d.exitTime === "---");
+            if (openRecord) { targetDoc = openRecord; existingData = openRecord; }
+            else if (docsList.length > 0 && docsList[0].date === currentDate) { targetDoc = snapAtt.docs.find(d => d.id === docsList[0].id); existingData = docsList[0]; }
+        }
+
+        if (action === 'attendance') {
+            if (existingData && existingData.date === currentDate && existingData.time && existingData.time !== "" && existingData.time !== "---") {
+                msgDiv.style.background = "#fff3cd";
+                msgDiv.style.color = "#856404";
+                msgDiv.innerHTML = "⚠️ لقد قمت بتسجيل الحضور مسبقاً اليوم!";
+                
+                document.getElementById('cardEmpName').innerText = empData.name;
+                document.getElementById('cardDate').innerText = `${existingData.day || ''} - ${existingData.date}`;
+                document.getElementById('cardTime').innerText = existingData.time;
+                document.getElementById('cardExit').innerText = existingData.exitTime || "---";
+                document.getElementById('exitRow').style.display = "none";
+                document.getElementById('cardStatus').innerText = existingData.status;
+                document.getElementById('employeeCard').style.display = "block";
+                return;
+            }
+
+            let status = (nowTime > getLimit(empData.type, nowTime)) ? "متأخر" : "حاضر";
+            
+            await addDoc(collection(db, "attendance"), {
+                empCode: code,
+                name: empData.name,
+                status,
+                time: nowTime,
+                exitTime: "",
+                date: currentDate,
+                day: currentDayName,
+                reason: "-"
+            });
+
+            msgDiv.style.background = "#e2f0d9";
+            msgDiv.style.color = "#385723";
+            msgDiv.innerHTML = "✅ تم تسجيل الحضور بنجاح كـ: " + status + (isSkipped ? " (مستثنى من البصمة)" : "");
+
+            document.getElementById('cardEmpName').innerText = empData.name;
+            document.getElementById('cardDate').innerText = `${currentDayName} - ${currentDate}`;
+            document.getElementById('cardTime').innerText = nowTime;
+            document.getElementById('cardExit').innerText = "---";
+            document.getElementById('exitRow').style.display = "none";
+            document.getElementById('cardStatus').innerText = status;
+            document.getElementById('cardStatus').style.color = (status === "متأخر") ? "#d9534f" : "#28a745";
+            document.getElementById('employeeCard').style.display = "block";
+
+        } else {
+            if (!existingData || (existingData.exitTime && existingData.exitTime !== "")) {
+                msgDiv.style.background = "#fff3cd";
+                msgDiv.style.color = "#856404";
+                msgDiv.innerHTML = "⚠️ لا يوجد سجل حضور مفتوح للانصراف!";
+                return;
+            }
+
+            if (["مدرس", "إداري", "موظف"].includes(empData.type)) {
+                if (serverTime.totalMinutes < (10 * 60 + 30)) {
+                    msgDiv.style.background = "#f8d7da";
+                    msgDiv.style.color = "#721c24";
+                    msgDiv.innerHTML = `❌ عذراً، لا يمكن تسجيل الانصراف قبل الساعة 10:30 صباحاً! (الوقت الحالي: ${nowTime})`;
+                    return;
+                }
+            }
+
+            await setDoc(doc(db, 'attendance', targetDoc.id), { 
+                exitTime: nowTime,
+                exitDate: currentDate,
+                exitDay: currentDayName
+            }, { merge: true });
+
+            msgDiv.style.background = "#e2f0d9";
+            msgDiv.style.color = "#385723";
+            msgDiv.innerHTML = "✅ تم تسجيل الانصراف بنجاح تام!";
+
+            document.getElementById('cardEmpName').innerText = empData.name;
+            document.getElementById('cardDate').innerText = `${existingData.day || ''} - ${existingData.date}`;
+            document.getElementById('cardTime').innerText = existingData.time || "---";
+            document.getElementById('cardExit').innerText = nowTime;
+            
+            if (currentDate !== existingData.date) {
+                document.getElementById('exitRow').style.display = "flex";
+                document.getElementById('cardExitDate').innerText = `${currentDayName} - ${currentDate}`;
+            } else {
+                document.getElementById('exitRow').style.display = "none";
+            }
+
+            document.getElementById('cardStatus').innerText = existingData.status || "حاضر";
+            document.getElementById('employeeCard').style.display = "block";
+        }
+    }
 </script>
 </body>
 </html>
