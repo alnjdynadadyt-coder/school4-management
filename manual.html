@@ -2,20 +2,20 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>التسجيل اليدوي - اعدادية النجدين</title>
+    <title>التسجيل اليدوي المفصل - اعدادية النجدين</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #eef2f3; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .input-group { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; background: #f8f9fa; padding: 15px; border-radius: 8px; }
         input, select, button { padding: 10px; border: 1px solid #ccc; border-radius: 5px; cursor: pointer; font-size: 14px; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: auto; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background-color: #007bff; color: white; }
         
-        /* تخصيص وتوسيع مساحة الاسم وتصغير حقل الانصراف */
-        th:nth-child(1), td:nth-child(1) { width: 20%; min-width: 110px; font-weight: bold; }
-        th:nth-child(8), td:nth-child(8) { width: 130px; }
-        td:nth-child(5) input[type="time"] { width: 85px; padding: 5px; font-size: 13px; text-align: center; }
+        th:nth-child(1), td:nth-child(1) { width: 10%; font-weight: bold; } /* الكود */
+        th:nth-child(2), td:nth-child(2) { width: 20%; font-weight: bold; text-align: right; padding-right: 15px; } /* الاسم */
+        th:nth-child(9), td:nth-child(9) { width: 130px; }
+        td:nth-child(6) input[type="time"] { width: 85px; padding: 5px; font-size: 13px; text-align: center; }
 
         .btn-edit { background: #ffc107; color: #333; border: none; padding: 5px 8px; border-radius: 3px; cursor: pointer; font-weight: bold; margin-left: 3px; }
         .btn-del { background: #ff4d4d; color: white; border: none; padding: 5px 8px; border-radius: 3px; cursor: pointer; font-weight: bold; }
@@ -26,7 +26,7 @@
 
 <div class="container">
     <a href="index.html" class="back-link">← العودة لوحة التحكم الرئيسية</a>
-    <h2 style="color:#007bff; text-align:center;">📝 التسجيل اليدوي المفصل للحضور</h2>
+    <h2 style="color:#007bff; text-align:center;">📝 التسجيل اليدوي المفصل للحضور (حسب التسلسل)</h2>
     
     <div class="input-group">
         <input type="date" id="dateSelector" onchange="renderTable()">
@@ -44,7 +44,17 @@
 
     <table>
         <thead>
-            <tr><th>الاسم</th><th>اليوم</th><th>التاريخ</th><th>الحضور</th><th>الانصراف</th><th>الحالة</th><th>السبب</th><th>إجراء</th></tr>
+            <tr>
+                <th>الكود</th>
+                <th>الاسم</th>
+                <th>اليوم</th>
+                <th>التاريخ</th>
+                <th>الحضور</th>
+                <th>الانصراف</th>
+                <th>الحالة</th>
+                <th>السبب</th>
+                <th>إجراء</th>
+            </tr>
         </thead>
         <tbody id="attendanceTable"></tbody>
     </table>
@@ -52,7 +62,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, doc, getDoc, addDoc, setDoc, deleteDoc, query, where, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, getDoc, addDoc, setDoc, deleteDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
     const db = getFirestore(initializeApp({
         apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
@@ -73,7 +83,7 @@
 
     let editingId = null;
 
-    const getLimit = (type, dayIndex, timeInput) => {
+    const getLimit = (type, timeInput) => {
         const [h, m] = timeInput.split(':').map(Number);
         const timeVal = h * 60 + m;
         if (type === "حارس") return (timeVal < 12 * 60) ? "07:10" : "17:10";
@@ -83,28 +93,49 @@
         return "08:10";
     };
 
-    window.renderTable = () => {
+    window.renderTable = async () => {
         const date = document.getElementById('dateSelector').value;
-        onSnapshot(query(collection(db, "attendance"), where("date", "==", date)), snap => {
-            let rows = "";
-            snap.forEach(d => {
-                let data = d.data();
+        
+        // جلب سجلات الحضور لهذا التاريخ
+        const attSnap = await getDocs(query(collection(db, "attendance"), where("date", "==", date)));
+        let attMap = {};
+        attSnap.forEach(d => {
+            attMap[d.data().empCode] = { id: d.id, ...d.data() };
+        });
+
+        // جلب جميع الموظفين وترتيبهم تصاعدياً حسب الكود
+        const empSnap = await getDocs(collection(db, "employees"));
+        let employees = [];
+        empSnap.forEach(d => {
+            employees.push({ id: d.id, ...d.data() });
+        });
+
+        // ترتيب الكودات تناسقياً برقمي أو نصي
+        employees.sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
+
+        let rows = "";
+        employees.forEach(emp => {
+            let data = attMap[emp.id];
+            if (data) {
+                // صف للموظف المسجل
                 rows += `<tr>
-                    <td>${data.name}</td>
+                    <td>${emp.id}</td>
+                    <td style="text-align: right; padding-right: 15px;">${data.name}</td>
                     <td>${data.day}</td>
                     <td>${data.date}</td>
                     <td>${data.time}</td>
-                    <td><input type="time" onchange="updateExitTime('${d.id}', this.value)" value="${data.exitTime || ''}"></td>
+                    <td><input type="time" onchange="updateExitTime('${data.id}', this.value)" value="${data.exitTime || ''}"></td>
                     <td>${data.status}</td>
                     <td>${data.reason || ''}</td>
                     <td>
-                        <button class="btn-edit" onclick="editAtt('${d.id}', '${data.empCode}', '${data.status}', '${data.time}', '${data.reason || ''}')">تعديل</button>
-                        <button class="btn-del" onclick="deleteAtt('${d.id}')">حذف</button>
+                        <button class="btn-edit" onclick="editAtt('${data.id}', '${data.empCode}', '${data.status}', '${data.time}', '${data.reason || ''}')">تعديل</button>
+                        <button class="btn-del" onclick="deleteAtt('${data.id}')">حذف</button>
                     </td>
                 </tr>`;
-            });
-            document.getElementById('attendanceTable').innerHTML = rows;
+            }
         });
+
+        document.getElementById('attendanceTable').innerHTML = rows || `<tr><td colspan="9" style="color: #6c757d;">لا توجد سجلات حضور لهذا التاريخ</td></tr>`;
     };
 
     window.updateExitTime = async (id, time) => { 
@@ -132,7 +163,6 @@
         const statusRaw = document.getElementById('status').value;
         const timeInput = document.getElementById('customTime').value;
         const reason = document.getElementById('reason').value;
-        const dayIndex = new Date(date).getDay();
 
         if(!code) { alert("يرجى إدخال كود الموظف"); return; }
 
@@ -141,12 +171,13 @@
         
         const empData = empSnap.data();
         let status = statusRaw;
-        if (status === "حاضر") {
-            status = (timeInput > getLimit(empData.type, dayIndex, timeInput)) ? "متأخر" : "حاضر";
+        
+        // إعادة احتساب الحالة بناءً على الوقت الجديد إذا كان حاضر أو متأخر
+        if (status === "حاضر" || status === "متأخر") {
+            status = (timeInput > getLimit(empData.type, timeInput)) ? "متأخر" : "حاضر";
         }
 
         if (editingId) {
-            // تحديث السجل الموجود
             await setDoc(doc(db, 'attendance', editingId), {
                 empCode: code,
                 name: empData.name,
@@ -155,10 +186,9 @@
                 reason: reason
             }, { merge: true });
 
-            alert("تم تحديث البيانات بنجاح");
+            alert("تم تحديث البيانات والحالة بنجاح");
             resetForm();
         } else {
-            // إضافة سجل جديد
             const q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", date));
             if (!(await getDocs(q)).empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
             
@@ -179,6 +209,7 @@
             alert("تم التسجيل بنجاح كـ: " + status);
             resetForm();
         }
+        renderTable();
     };
 
     function resetForm() {
@@ -191,9 +222,10 @@
         btn.style.color = "white";
     }
 
-    window.deleteAtt = (id) => {
+    window.deleteAtt = async (id) => {
         if(confirm("هل أنت متأكد من حذف هذا السجل؟")) {
-            deleteDoc(doc(db, 'attendance', id));
+            await deleteDoc(doc(db, 'attendance', id));
+            renderTable();
         }
     };
 
