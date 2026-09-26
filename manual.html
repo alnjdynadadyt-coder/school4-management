@@ -17,6 +17,12 @@
         th:nth-child(9), td:nth-child(9) { width: 130px; }
         td:nth-child(6) input[type="time"] { width: 85px; padding: 5px; font-size: 13px; text-align: center; }
 
+        /* ألوان صفوف الجدول حسب الحالة */
+        .status-present { background-color: #d4edda !important; } /* أخضر فاتح */
+        .status-late { background-color: #fff3cd !important; }    /* أصفر فاتح */
+        .status-leave { background-color: #cce5ff !important; }   /* أزرق فاتح */
+        .status-absent { background-color: #f8d7da !important; }  /* أحمر فاتح */
+
         .btn-edit { background: #ffc107; color: #333; border: none; padding: 5px 8px; border-radius: 3px; cursor: pointer; font-weight: bold; margin-left: 3px; }
         .btn-del { background: #ff4d4d; color: white; border: none; padding: 5px 8px; border-radius: 3px; cursor: pointer; font-weight: bold; }
         .back-link { display: inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none; font-weight: bold; }
@@ -36,6 +42,7 @@
             <option>متأخر</option>
             <option>مجاز</option>
             <option>غائب</option>
+            <option>منسب</option>
         </select>
         <input type="text" id="reason" placeholder="سبب الغياب أو الملاحظة">
         <input type="time" id="customTime">
@@ -93,38 +100,50 @@
         return "08:10";
     };
 
+    // تحديد كلاس اللون المناسب حسب الحالة
+    const getStatusClass = (status) => {
+        if (status === "حاضر") return "status-present";
+        if (status === "متأخر") return "status-late";
+        if (status === "مجاز" || status === "منسب") return "status-leave";
+        if (status === "غائب") return "status-absent";
+        return "";
+    };
+
     window.renderTable = async () => {
         const date = document.getElementById('dateSelector').value;
         
-        // جلب سجلات الحضور لهذا التاريخ
         const attSnap = await getDocs(query(collection(db, "attendance"), where("date", "==", date)));
         let attMap = {};
         attSnap.forEach(d => {
             attMap[d.data().empCode] = { id: d.id, ...d.data() };
         });
 
-        // جلب جميع الموظفين وترتيبهم تصاعدياً حسب الكود
         const empSnap = await getDocs(collection(db, "employees"));
         let employees = [];
         empSnap.forEach(d => {
             employees.push({ id: d.id, ...d.data() });
         });
 
-        // ترتيب الكودات تناسقياً برقمي أو نصي
         employees.sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
 
         let rows = "";
         employees.forEach(emp => {
             let data = attMap[emp.id];
             if (data) {
-                // صف للموظف المسجل
-                rows += `<tr>
+                let rowClass = getStatusClass(data.status);
+                // قفل حقل الانصراف إذا كانت الحالة غير حاضر أو متأخر
+                let isLocked = (data.status === "مجاز" || data.status === "غائب" || data.status === "منسب");
+                let exitInputHtml = isLocked 
+                    ? `<span style="color:#6c757d; font-weight:bold;">-</span>` 
+                    : `<input type="time" onchange="updateExitTime('${data.id}', this.value)" value="${data.exitTime || ''}">`;
+
+                rows += `<tr class="${rowClass}">
                     <td>${emp.id}</td>
                     <td style="text-align: right; padding-right: 15px;">${data.name}</td>
                     <td>${data.day}</td>
                     <td>${data.date}</td>
                     <td>${data.time}</td>
-                    <td><input type="time" onchange="updateExitTime('${data.id}', this.value)" value="${data.exitTime || ''}"></td>
+                    <td>${exitInputHtml}</td>
                     <td>${data.status}</td>
                     <td>${data.reason || ''}</td>
                     <td>
@@ -172,17 +191,26 @@
         const empData = empSnap.data();
         let status = statusRaw;
         
-        // إعادة احتساب الحالة بناءً على الوقت الجديد إذا كان حاضر أو متأخر
         if (status === "حاضر" || status === "متأخر") {
             status = (timeInput > getLimit(empData.type, timeInput)) ? "متأخر" : "حاضر";
         }
 
+        // تفريغ وقت الانصراف تماماً إذا كانت الحالة الجديدة تتطلب قفله
+        let finalExitTime = "";
+
         if (editingId) {
+            // جلب البيانات القديمة لنتاكد
+            const oldDoc = await getDoc(doc(db, 'attendance', editingId));
+            if(oldDoc.exists()) {
+                finalExitTime = (status === "مجاز" || status === "غائب" || status === "منسب") ? "" : (oldDoc.data().exitTime || "");
+            }
+
             await setDoc(doc(db, 'attendance', editingId), {
                 empCode: code,
                 name: empData.name,
                 status,
-                time: (status === "غائب" || status === "مجاز") ? "-" : timeInput,
+                time: (status === "غائب" || status === "مجاز" || status === "منسب") ? "-" : timeInput,
+                exitTime: finalExitTime,
                 reason: reason
             }, { merge: true });
 
@@ -199,7 +227,7 @@
                 empCode: code, 
                 name: empData.name, 
                 status, 
-                time: (status === "غائب" || status === "مجاز") ? "-" : timeInput, 
+                time: (status === "غائب" || status === "مجاز" || status === "منسب") ? "-" : timeInput, 
                 exitTime: "", 
                 date, 
                 day: formattedDayName, 
@@ -233,3 +261,4 @@
 </script>
 </body>
 </html>
+ 
