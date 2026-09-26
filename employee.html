@@ -42,11 +42,12 @@
         .info-label { font-weight: bold; color: #444; }
         .info-value { color: #111; font-weight: bold; }
 
-        /* نافذة معاينة الكاميرا الأولى للموظف الجديد */
+        /* نافذة معاينة الكاميرا التفاعلية لكل عملية */
         .camera-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 3000; justify-content: center; align-items: center; }
         .camera-modal-content { background: white; padding: 20px; border-radius: 15px; width: 90%; max-width: 360px; text-align: center; box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
         .camera-modal-content video { width: 100%; max-height: 280px; border-radius: 10px; object-fit: cover; background: #000; transform: scaleX(-1); }
         .btn-capture-face { background: #27ae60; color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; font-size: 16px; font-weight: bold; margin-top: 15px; cursor: pointer; }
+        .btn-cancel-face { background: #e74c3c; color: white; border: none; padding: 8px; width: 100%; border-radius: 8px; font-size: 14px; font-weight: bold; margin-top: 8px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -58,26 +59,25 @@
         <input type="text" id="empCode" placeholder="أدخل كود الموظف" autocomplete="off">
 
         <div class="btn-container">
-            <button class="btn-reg btn-attendance" onclick="registerAction('attendance')">
+            <button class="btn-reg btn-attendance" onclick="initiateAction('attendance')">
                 <span>🏠 🟢</span> تسجيل الحضور
             </button>
-            <button class="btn-reg btn-exit" onclick="registerAction('exit')">
+            <button class="btn-reg btn-exit" onclick="initiateAction('exit')">
                 <span>🟣</span> تسجيل الانصراف
             </button>
         </div>
     </div>
 
-    <!-- عناصر الكاميرا للتشغيل الخلفي والظهور عند الحاجة -->
-    <video id="webcamVideo" autoplay playsinline style="display:none;"></video>
     <canvas id="snapshotCanvas" style="display:none;"></canvas>
 
-    <!-- نافذة معاينة الكاميرا لتسجيل البصمة لأول مرة -->
+    <!-- نافذة معاينة الكاميرا لتأكيد البصمة في كل عملية -->
     <div id="cameraModal" class="camera-modal-overlay">
         <div class="camera-modal-content">
-            <h3 style="color: #2c3e50; margin-top: 0; font-size: 18px;">📸 ربط بصمة الوجه لأول مرة</h3>
-            <p style="font-size: 13px; color: #666; margin-bottom: 10px;">يرجى توجيه الكاميرا نحو وجهك بوضوح ثم اضغط زر التقاط وتأكيد:</p>
+            <h3 style="color: #2c3e50; margin-top: 0; font-size: 18px;" id="modalTitle">📸 التحقق ببصمة الوجه</h3>
+            <p style="font-size: 13px; color: #666; margin-bottom: 10px;">يرجى توجيه الكاميرا نحو وجهك بوضوح ثم اضغط التقاط:</p>
             <video id="modalWebcamVideo" autoplay playsinline></video>
-            <button class="btn-capture-face" onclick="confirmFirstTimeFace()">التقاط وتأكيد الصورة ✨</button>
+            <button class="btn-capture-face" onclick="confirmFaceAndProceed()">التقاط وتأكيد ✨</button>
+            <button class="btn-cancel-face" onclick="closeCameraModal()">إلغاء</button>
         </div>
     </div>
 
@@ -132,16 +132,21 @@
     const SCHOOL_LAT = 31.7296172;
     const SCHOOL_LON = 44.9905462;
 
-    // تشغيل الكاميرا الأمامية بصمت في الخلفية
-    const videoElement = document.getElementById('webcamVideo');
     const modalVideoElement = document.getElementById('modalWebcamVideo');
-    
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
-        .then(stream => { 
-            videoElement.srcObject = stream; 
-            modalVideoElement.srcObject = stream;
-        })
-        .catch(err => { console.warn("تعذر تشغيل الكاميرا تلقائياً:", err); });
+    let mediaStream = null;
+
+    // تشغيل الكاميرا عند الطلب للنافذة التفاعلية
+    async function startCamera() {
+        try {
+            if (!mediaStream) {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+                modalVideoElement.srcObject = mediaStream;
+            }
+        } catch (err) {
+            console.warn("تعذر تشغيل الكاميرا:", err);
+            alert("⚠️ يرجى السماح للمتصفح بالوصول إلى الكاميرا.");
+        }
+    }
 
     function generateImageHash(canvas) {
         const size = 24;
@@ -178,12 +183,12 @@
         return (matchingBits / hash1.length) * 100;
     }
 
-    function captureFaceData(sourceVideo = videoElement) {
+    function captureFaceData() {
         const canvas = document.getElementById('snapshotCanvas');
         canvas.width = 150;
         canvas.height = 150;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(sourceVideo, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(modalVideoElement, 0, 0, canvas.width, canvas.height);
         
         return {
             base64: canvas.toDataURL('image/jpeg', 0.6),
@@ -191,7 +196,7 @@
         };
     }
 
-    // التحقق من الموقع الجغرافي عند فتح الصفحة
+    // التحقق من الموقع الجغرافي
     navigator.geolocation.getCurrentPosition(pos => {
         const dist = 6371e3 * 2 * Math.atan2(Math.sqrt(Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2), Math.sqrt(1 - (Math.sin(((pos.coords.latitude-SCHOOL_LAT)*Math.PI/180)/2)**2 + Math.cos(SCHOOL_LAT*Math.PI/180)*Math.cos(pos.coords.latitude*Math.PI/180)*Math.sin(((pos.coords.longitude-SCHOOL_LON)*Math.PI/180)/2)**2)));
         
@@ -252,7 +257,8 @@
 
     let pendingActionData = null;
 
-    window.registerAction = async (action) => {
+    // الخطوة الأولى عند ضغط حضور أو انصراف: التحقق من الكود ثم فتح الكاميرا
+    window.initiateAction = async (action) => {
         if (!isLocationVerified) {
             alert("❌ لا يمكن التسجيل لأن الموقع الجغرافي غير مؤكد أو أنك خارج النطاق!");
             return;
@@ -267,10 +273,6 @@
             return;
         }
 
-        msgDiv.style.background = "#d1ecf1";
-        msgDiv.style.color = "#0c5460";
-        msgDiv.innerHTML = "⏳ جاري التحقق من الهوية...";
-
         try {
             const empSnap = await getDoc(doc(db, "employees", code));
             if (!empSnap.exists()) {
@@ -281,11 +283,38 @@
             }
             const empData = empSnap.data();
 
+            pendingActionData = { code, action, empData };
+            document.getElementById('modalTitle').innerText = action === 'attendance' ? '📸 تسجيل الحضور - بصمة الوجه' : '📸 تسجيل الانصراف - بصمة الوجه';
+            document.getElementById('cameraModal').style.display = 'flex';
+            await startCamera();
+
+        } catch (err) {
+            console.error(err);
+            msgDiv.style.background = "#f8d7da";
+            msgDiv.style.color = "#721c24";
+            msgDiv.innerHTML = "❌ خطأ في الاتصال، حاول مرة أخرى.";
+        }
+    };
+
+    window.closeCameraModal = () => {
+        document.getElementById('cameraModal').style.display = 'none';
+        pendingActionData = null;
+    };
+
+    // الخطوة الثانية: عند الضغط على التقاط وتأكيد في نافذة الكاميرا
+    window.confirmFaceAndProceed = async () => {
+        if (!pendingActionData) return;
+        const { code, action, empData } = pendingActionData;
+
+        document.getElementById('cameraModal').style.display = 'none';
+        msgDiv.style.background = "#d1ecf1";
+        msgDiv.style.color = "#0c5460";
+        msgDiv.innerHTML = "⏳ جاري التحقق من الوجه...";
+
+        try {
             const isSkipped = empData.skipFaceCheck === true;
 
-            if (isSkipped) {
-                console.log("الموظف مستثنى من بصمة الوجه - تخطي الكاميرا.");
-            } else {
+            if (!isSkipped) {
                 const qDev = query(collection(db, "employees"), where("deviceId", "==", deviceId));
                 const devSnap = await getDocs(qDev);
                 let ownerEmpCode = null;
@@ -305,14 +334,16 @@
                     return;
                 }
 
-                // 💡 إذا كانت المرة الأولى ولا توجد بصمة مخزنة: افتح نافذة الكاميرا المرئية للموظف ليرى وجهه
+                const currentCapture = captureFaceData();
+
                 if (!empData.referenceFace || !empData.imageHash) {
-                    pendingActionData = { code, action, empData };
-                    document.getElementById('cameraModal').style.display = 'flex';
-                    msgDiv.innerHTML = "📸 يرجى تأكيد التقاط صورتك في النافذة الظاهرة أمامك لأول مرة.";
-                    return;
+                    await setDoc(doc(db, "employees", code), { 
+                        deviceId: deviceId,
+                        referenceFace: currentCapture.base64,
+                        imageHash: currentCapture.hash
+                    }, { merge: true });
+                    alert("✨ تم ربط الهاتف وبصمة الوجه بنجاح لأول مرة!");
                 } else {
-                    const currentCapture = captureFaceData(videoElement);
                     const similarity = compareImageHashes(empData.imageHash, currentCapture.hash);
                     if (similarity < 82) {
                         msgDiv.style.background = "#f8d7da";
@@ -329,31 +360,12 @@
             console.error(err);
             msgDiv.style.background = "#f8d7da";
             msgDiv.style.color = "#721c24";
-            msgDiv.innerHTML = "❌ خطأ في الاتصال، حاول مرة أخرى.";
+            msgDiv.innerHTML = "❌ خطأ أثناء معالجة الصورة أو الاتصال.";
         }
-    };
-
-    // دالة التقاط الصورة وتأكيدها من نافذة الموظف الجديدة لأول مرة
-    window.confirmFirstTimeFace = async () => {
-        if (!pendingActionData) return;
-        const { code, action, empData } = pendingActionData;
-
-        const currentCapture = captureFaceData(modalWebcamVideo);
-        
-        await setDoc(doc(db, "employees", code), { 
-            deviceId: deviceId,
-            referenceFace: currentCapture.base64,
-            imageHash: currentCapture.hash
-        }, { merge: true });
-
-        document.getElementById('cameraModal').style.display = 'none';
-        alert("✨ تم ربط الهاتف وبصمة الوجه بنجاح لأول مرة!");
-
-        await executeRegistration(code, action, empData, false);
         pendingActionData = null;
     };
 
-    // تنفيذ عملية الحضور والانصراف بعد اكتمال التحقق
+    // تنفيذ الحضور أو الانصراف
     async function executeRegistration(code, action, empData, isSkipped) {
         const serverTime = await getSecureServerTime();
         const nowTime = serverTime.timeStr;
