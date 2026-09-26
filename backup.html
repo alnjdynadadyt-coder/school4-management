@@ -38,7 +38,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, setDoc, doc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, doc, writeBatch } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
     const db = getFirestore(initializeApp({
         apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
@@ -61,11 +61,9 @@
             showStatus("جاري تجهيز النسخة الاحتياطية الشاملة...", "#007bff");
             let backupData = { employees: {}, attendance: {} };
             
-            // جلب جدول الموظفين
             const empSnap = await getDocs(collection(db, "employees"));
             empSnap.forEach(d => { backupData.employees[d.id] = d.data(); });
 
-            // جلب جدول الحضور والغياب
             const attSnap = await getDocs(collection(db, "attendance"));
             attSnap.forEach(d => { backupData.attendance[d.id] = d.data(); });
 
@@ -73,7 +71,6 @@
             let dlAnchor = document.createElement('a');
             dlAnchor.setAttribute("href", dataStr);
             
-            // تسمية واضحة ومنظمة للملف تتضمن اسم المدرسة وتاريخ اليوم
             let todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
             dlAnchor.setAttribute("download", `Najdain_School_Backup_${todayDate}.json`);
             
@@ -94,45 +91,69 @@
             return;
         }
 
-        // تنبيه تأكيد قبل الاستيراد لمنع الكتابة الخطأ
-        if (!confirm("تحذير: هل أنت متأكد من استيراد هذه النسخة؟ سيتم دمج وتحديث البيانات الحالية في النظام بناءً على الملف.")) {
+        if (!confirm("تحذير: هل أنت متأكد من استيراد هذه النسخة؟ سيتم استعادة وتحديث البيانات في النظام بناءً على الملف.")) {
             return;
         }
 
         const file = fileInput.files[0];
-        showStatus("جاري قراءة الملف...", "#007bff");
+        showStatus("جاري قراءة الملف وتحليله...", "#007bff");
 
         const reader = new FileReader();
 
         reader.onload = async function(event) {
             try {
-                showStatus("جاري تحليل محتوى الملف...", "#007bff");
                 const data = JSON.parse(event.target.result);
                 let countEmployees = 0;
                 let countAttendance = 0;
                 
-                showStatus("جاري رفع واستعادة البيانات إلى قاعدة البيانات...", "#007bff");
+                showStatus("جاري رفع البيانات دفعة واحدة...", "#007bff");
+
+                // استخدام نظام الحزم (Batch) للرفع السريع جداً
+                let batch = writeBatch(db);
+                let operationCount = 0;
 
                 if (data.employees) {
                     for (let id in data.employees) {
-                        await setDoc(doc(db, "employees", id), data.employees[id]);
+                        let docRef = doc(db, "employees", id);
+                        batch.set(docRef, data.employees[id]);
                         countEmployees++;
+                        operationCount++;
+                        
+                        // فايرستور يسمح بحد أقصى 500 عملية في البッチ الواحد
+                        if (operationCount >= 400) {
+                            await batch.commit();
+                            batch = writeBatch(db);
+                            operationCount = 0;
+                        }
                     }
                 }
 
                 if (data.attendance) {
                     for (let id in data.attendance) {
-                        await setDoc(doc(db, "attendance", id), data.attendance[id]);
+                        let docRef = doc(db, "attendance", id);
+                        batch.set(docRef, data.attendance[id]);
                         countAttendance++;
+                        operationCount++;
+
+                        if (operationCount >= 400) {
+                            await batch.commit();
+                            batch = writeBatch(db);
+                            operationCount = 0;
+                        }
                     }
                 }
 
-                showStatus(`تم استيراد واستعادة البيانات بنجاح! (موظفين: ${countEmployees}, سجلات حضور: ${countAttendance})`, "green");
-                alert(`تم استيراد البيانات بنجاح وسلاسة!\n- عدد الموظفين المستعادين: ${countEmployees}\n- عدد سجلات الحضور المستعادة: ${countAttendance}`);
+                // تنفيذ الدفعة الأخيرة المتبقية
+                if (operationCount > 0) {
+                    await batch.commit();
+                }
+
+                showStatus(`تمت الاستعادة بنجاح! (موظفين: ${countEmployees}, سجلات: ${countAttendance})`, "green");
+                alert(`تم استيراد واستعادة البيانات بنجاح وبسرعة فائقة!\n- عدد الموظفين: ${countEmployees}\n- عدد سجلات الحضور: ${countAttendance}`);
             } catch (e) {
                 console.error(e);
-                showStatus("خطأ: الملف غير صالح أو تالف.", "red");
-                alert("ملف غير صالح أو حدث خطأ أثناء تحليل بيانات JSON.");
+                showStatus("خطأ: الملف غير صالح أو فشل الاتصال.", "red");
+                alert("حدث خطأ أثناء استيراد البيانات، تأكد من صحة الملف.");
             }
         };
 
