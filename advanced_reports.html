@@ -7,17 +7,29 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #f4f7f6; text-align: center; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .container { max-width: 950px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         .filter-box { background: #fffdf5; padding: 20px; border-radius: 8px; border: 1px solid #ffeeba; margin-bottom: 20px; display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
-        input, select { padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 5px; width: 220px; }
+        input, select { padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 5px; width: 200px; }
         .btn { padding: 10px 15px; font-size: 14px; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin: 2px; }
         .btn-search { background: #28a745; }
         .btn-excel { background: #17a2b8; }
         .btn-pdf { background: #dc3545; }
+        
+        /* لوحة الإحصائيات الفردية بالأرقام */
+        .emp-stats { display: flex; gap: 10px; justify-content: space-around; background: #e9ecef; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; font-size: 14px; }
+        .emp-stats span { color: #333; }
+
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #ddd; padding: 10px; font-size: 14px; text-align: center; }
         th { background: #007bff; color: white; }
         tr:nth-child(even) { background: #f9f9f9; }
+
+        /* ألوان الحالات */
+        .status-present { color: #28a745; font-weight: bold; }
+        .status-late { color: #fd7e14; font-weight: bold; }
+        .status-leave { color: #17a2b8; font-weight: bold; }
+        .status-absent { color: #dc3545; font-weight: bold; }
+        .status-unregistered { color: #6c757d; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -45,11 +57,19 @@
         </div>
     </div>
 
+    <!-- لوحة إحصائيات الموظف بالأرقام -->
+    <div class="emp-stats" id="empStatsBox" style="display: none;">
+        <span>إجمالي الحضور: <span id="statPresent" style="color:#28a745;">0</span></span>
+        <span>إجمالي المتأخرين: <span id="statLate" style="color:#fd7e14;">0</span></span>
+        <span>إجمالي المجازين: <span id="statLeave" style="color:#17a2b8;">0</span></span>
+        <span>إجمالي الغياب/لم يسجل: <span id="statAbsent" style="color:#dc3545;">0</span></span>
+    </div>
+
     <table>
         <thead>
             <tr>
                 <th>الاسم</th>
-                <th>التاريخ</th>
+                <th>التاريخ والיום</th>
                 <th>الحضور</th>
                 <th>الانصراف</th>
                 <th>الحالة</th>
@@ -67,7 +87,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, doc, getDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
     const db = getFirestore(initializeApp({
         apiKey: "AIzaSyCfJ5wGmw2BUZbTfPXILVOYjdQQYdDb0VQ",
@@ -79,6 +99,14 @@
         measurementId: "G-G89TZ8CC7Y"
     }));
 
+    // دالة مساعدة لتنسيق التاريخ وإظهار اسم اليوم بالعربي
+    function formatDateWithDay(dateStr) {
+        if (!dateStr) return '---';
+        let d = new Date(dateStr);
+        let options = { weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Baghdad' };
+        return d.toLocaleDateString('ar-IQ', options);
+    }
+
     window.fetchAdvancedReport = async () => {
         const start = document.getElementById('startDate').value;
         const end = document.getElementById('endDate').value;
@@ -89,45 +117,109 @@
             return;
         }
 
+        if (!start || !end) {
+            alert("يرجى تحديد فترة (من تاريخ وإلى تاريخ) لعرض الأيام بدقة!");
+            return;
+        }
+
         const tbody = document.getElementById('reportTableBody');
-        tbody.innerHTML = `<tr><td colspan="6">جاري البحث...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6">جاري البحث وتحليل البيانات...</td></tr>`;
 
         try {
+            // 1. جلب بيانات الموظف الأساسية
+            const empSnap = await getDoc(doc(db, "employees", code));
+            if (!empSnap.exists()) {
+                alert("كود الموظف غير موجود في النظام!");
+                tbody.innerHTML = `<tr><td colspan="6" style="color:red;">الموظف غير موجود</td></tr>`;
+                document.getElementById('empStatsBox').style.display = 'none';
+                return;
+            }
+            const empName = empSnap.data().name;
+
+            // 2. جلب سجلات الحضور الخاصة بالموظف
             const q = query(collection(db, "attendance"), where("empCode", "==", code));
             const snapshot = await getDocs(q);
             
-            let records = [];
+            let attendanceMap = {};
             snapshot.forEach(docSnap => {
                 const data = docSnap.data();
-                if (start && data.date < start) return;
-                if (end && data.date > end) return;
-                records.push(data);
+                if (data.date) {
+                    attendanceMap[data.date] = data;
+                }
             });
 
-            // 🔄 ترتيب السجلات تصاعدياً بناءً على التاريخ
-            records.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+            // 3. توليد كافة الأيام ضمن النطاق (مع استبعاد الجمعة والسبت)
+            let currentDate = new Date(start);
+            let endDateObj = new Date(end);
+            let reportDays = [];
 
-            tbody.innerHTML = "";
+            while (currentDate <= endDateObj) {
+                let dayOfWeek = currentDate.getDay(); // 5 = الجمعة, 6 = السبت
+                // استبعاد الجمعة (5) والسبت (6)
+                if (dayOfWeek !== 5 && dayOfWeek !== 6) {
+                    let dateString = currentDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
+                    reportDays.push(dateString);
+                }
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            // ترتيب الأيام تصاعدياً
+            reportDays.sort();
+
             let rowsHtml = "";
+            let pCount = 0, lCount = 0, lvCount = 0, aCount = 0;
 
-            records.forEach(data => {
+            reportDays.forEach(dateStr => {
+                let record = attendanceMap[dateStr];
+                let status = "لم يسجل";
+                let time = "-";
+                let exitTime = "-";
+                let reason = "-";
+                let statusClass = "status-unregistered";
+
+                if (record) {
+                    status = record.status || "حاضر";
+                    time = record.time || "-";
+                    exitTime = record.exitTime || "-";
+                    reason = record.reason || "-";
+
+                    if (status === "حاضر") { statusClass = "status-present"; pCount++; }
+                    else if (status === "متأخر") { statusClass = "status-late"; lCount++; }
+                    else if (status === "مجاز") { statusClass = "status-leave"; lvCount++; }
+                    else if (status === "غائب") { statusClass = "status-absent"; aCount++; }
+                } else {
+                    // إذا لم يوجد سجل في يوم دوام رسمي يعتبر غائباً / لم يسجل
+                    aCount++;
+                }
+
+                let formattedDateAndDay = formatDateWithDay(dateStr);
+
                 rowsHtml += `
                     <tr>
-                        <td>${data.name || '---'}</td>
-                        <td>${data.date || '---'}</td>
-                        <td>${data.time || '---'}</td>
-                        <td>${data.exitTime || '---'}</td>
-                        <td>${data.status || '---'}</td>
-                        <td>${data.reason || '-'}</td>
+                        <td>${empName}</td>
+                        <td>${formattedDateAndDay}</td>
+                        <td>${time}</td>
+                        <td>${exitTime}</td>
+                        <td class="${statusClass}">${status}</td>
+                        <td>${reason}</td>
                     </tr>
                 `;
             });
 
-            if (rowsHtml === "") {
-                tbody.innerHTML = `<tr><td colspan="6" style="color:red;">لا توجد سجلات مطابقة ضمن هذه الفترة!</td></tr>`;
+            if (reportDays.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="color:red;">لا توجد أيام دوام ضمن هذه الفترة (تم استبعاد العطل الأسبوعية)!</td></tr>`;
+                document.getElementById('empStatsBox').style.display = 'none';
             } else {
                 tbody.innerHTML = rowsHtml;
+                
+                // تحديث وإظهار لوحة الإحصائيات بالأرقام
+                document.getElementById('statPresent').innerText = pCount;
+                document.getElementById('statLate').innerText = lCount;
+                document.getElementById('statLeave').innerText = lvCount;
+                document.getElementById('statAbsent').innerText = aCount;
+                document.getElementById('empStatsBox').style.display = 'flex';
             }
+
         } catch (error) {
             console.error(error);
             alert("حدث خطأ أثناء جلب البيانات.");
