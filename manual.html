@@ -109,54 +109,62 @@
     };
 
     window.renderTable = async () => {
-        const date = document.getElementById('dateSelector').value;
-        
-        const attSnap = await getDocs(query(collection(db, "attendance"), where("date", "==", date)));
-        let attMap = {};
-        attSnap.forEach(d => {
-            attMap[d.data().empCode] = { id: d.id, ...d.data() };
-        });
+        try {
+            const date = document.getElementById('dateSelector').value;
+            
+            const attSnap = await getDocs(query(collection(db, "attendance"), where("date", "==", date)));
+            let attMap = {};
+            attSnap.forEach(d => {
+                attMap[d.data().empCode] = { id: d.id, ...d.data() };
+            });
 
-        const empSnap = await getDocs(collection(db, "employees"));
-        let employees = [];
-        empSnap.forEach(d => {
-            employees.push({ id: d.id, ...d.data() });
-        });
+            const empSnap = await getDocs(collection(db, "employees"));
+            let employees = [];
+            empSnap.forEach(d => {
+                employees.push({ id: d.id, ...d.data() });
+            });
 
-        employees.sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
+            employees.sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
 
-        let rows = "";
-        employees.forEach(emp => {
-            let data = attMap[emp.id];
-            if (data) {
-                let rowClass = getStatusClass(data.status);
-                let isLocked = (data.status === "مجاز" || data.status === "غائب" || data.status === "منسب");
-                let exitInputHtml = isLocked 
-                    ? `<span style="color:#6c757d; font-weight:bold;">-</span>` 
-                    : `<input type="time" onchange="updateExitTime('${data.id}', this.value)" value="${data.exitTime || ''}">`;
+            let rows = "";
+            employees.forEach(emp => {
+                let data = attMap[emp.id];
+                if (data) {
+                    let rowClass = getStatusClass(data.status);
+                    let isLocked = (data.status === "مجاز" || data.status === "غائب" || data.status === "منسب");
+                    let exitInputHtml = isLocked 
+                        ? `<span style="color:#6c757d; font-weight:bold;">-</span>` 
+                        : `<input type="time" onchange="updateExitTime('${data.id}', this.value)" value="${data.exitTime || ''}">`;
 
-                rows += `<tr class="${rowClass}">
-                    <td>${emp.id}</td>
-                    <td style="text-align: right; padding-right: 15px;">${data.name}</td>
-                    <td>${data.day}</td>
-                    <td>${data.date}</td>
-                    <td>${data.time}</td>
-                    <td>${exitInputHtml}</td>
-                    <td>${data.status}</td>
-                    <td>${data.reason || ''}</td>
-                    <td>
-                        <button class="btn-edit" onclick="editAtt('${data.id}', '${data.empCode}', '${data.status}', '${data.time}', '${data.reason || ''}')">تعديل</button>
-                        <button class="btn-del" onclick="deleteAtt('${data.id}')">حذف</button>
-                    </td>
-                </tr>`;
-            }
-        });
+                    rows += `<tr class="${rowClass}">
+                        <td>${emp.id}</td>
+                        <td style="text-align: right; padding-right: 15px;">${data.name}</td>
+                        <td>${data.day}</td>
+                        <td>${data.date}</td>
+                        <td>${data.time}</td>
+                        <td>${exitInputHtml}</td>
+                        <td>${data.status}</td>
+                        <td>${data.reason || ''}</td>
+                        <td>
+                            <button class="btn-edit" onclick="editAtt('${data.id}', '${data.empCode}', '${data.status}', '${data.time}', '${data.reason || ''}')">تعديل</button>
+                            <button class="btn-del" onclick="deleteAtt('${data.id}')">حذف</button>
+                        </td>
+                    </tr>`;
+                }
+            });
 
-        document.getElementById('attendanceTable').innerHTML = rows || `<tr><td colspan="9" style="color: #6c757d;">لا توجد سجلات حضور لهذا التاريخ</td></tr>`;
+            document.getElementById('attendanceTable').innerHTML = rows || `<tr><td colspan="9" style="color: #6c757d;">لا توجد سجلات حضور لهذا التاريخ</td></tr>`;
+        } catch (error) {
+            console.error("Error rendering table:", error);
+        }
     };
 
     window.updateExitTime = async (id, time) => { 
-        await setDoc(doc(db, 'attendance', id), { exitTime: time }, { merge: true }); 
+        try {
+            await setDoc(doc(db, 'attendance', id), { exitTime: time }, { merge: true }); 
+        } catch (error) {
+            alert("حدث خطأ أثناء تحديث وقت الانصراف: " + error.message);
+        }
     };
 
     window.editAtt = (id, code, status, time, reason) => {
@@ -175,59 +183,70 @@
     };
 
     window.saveAttendance = async () => {
-        const code = document.getElementById('empCode').value.trim();
-        const date = document.getElementById('dateSelector').value;
-        const statusRaw = document.getElementById('status').value;
-        const timeInput = document.getElementById('customTime').value;
-        const reason = document.getElementById('reason').value;
+        try {
+            const code = document.getElementById('empCode').value.trim();
+            const date = document.getElementById('dateSelector').value;
+            const statusRaw = document.getElementById('status').value;
+            const timeInput = document.getElementById('customTime').value;
+            const reason = document.getElementById('reason').value;
 
-        if(!code) { alert("يرجى إدخال كود الموظف"); return; }
+            if(!code) { alert("يرجى إدخال كود الموظف"); return; }
 
-        const empSnap = await getDoc(doc(db, "employees", code));
-        if (!empSnap.exists()) { alert("الكود غير موجود في قائمة الموظفين!"); return; }
-        
-        const empData = empSnap.data();
-        let status = statusRaw;
-        
-        // إذا تم اختيار حاضر أو متأخر، نتحقق من الوقت هل يستحق التأخير أم حاضر
-        if (status === "حاضر" || status === "متأخر") {
-            status = (timeInput > getLimit(empData.type, timeInput)) ? "متأخر" : "حاضر";
-        }
-
-        if (editingId) {
-            await setDoc(doc(db, 'attendance', editingId), {
-                empCode: code,
-                name: empData.name,
-                status: status, // اعتماد الحالة المختارة بدقة
-                time: (status === "غائب" || status === "مجاز" || status === "منسب") ? "-" : timeInput,
-                exitTime: (status === "غائب" || status === "مجاز" || status === "منسب") ? "" : undefined, // تفريغ وقت الانصراف في حال تحولت لحالة خاصة
-                reason: reason
-            }, { merge: true, silent: true });
-
-            alert("تم تحديث البيانات والحالة بنجاح إلى: " + status);
-            resetForm();
-        } else {
-            const q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", date));
-            if (!(await getDocs(q)).empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
+            const empSnap = await getDoc(doc(db, "employees", code));
+            if (!empSnap.exists()) { alert("الكود غير موجود في قائمة الموظفين!"); return; }
             
-            const targetDateObj = new Date(date);
-            const formattedDayName = targetDateObj.toLocaleDateString('ar-EG', {weekday: 'long', timeZone: 'Asia/Baghdad'});
-
-            await addDoc(collection(db, "attendance"), { 
-                empCode: code, 
-                name: empData.name, 
-                status, 
-                time: (status === "غائب" || status === "مجاز" || status === "منسب") ? "-" : timeInput, 
-                exitTime: "", 
-                date, 
-                day: formattedDayName, 
-                reason: reason 
-            });
+            const empData = empSnap.data();
+            let status = statusRaw;
             
-            alert("تم التسجيل بنجاح كـ: " + status);
-            resetForm();
+            if (status === "حاضر" || status === "متأخر") {
+                status = (timeInput > getLimit(empData.type, timeInput)) ? "متأخر" : "حاضر";
+            }
+
+            if (editingId) {
+                // تحديث السجل الحالي بنجاح
+                const updateData = {
+                    empCode: code,
+                    name: empData.name,
+                    status: status,
+                    time: (status === "غائب" || status === "مجاز" || status === "منسب") ? "-" : timeInput,
+                    reason: reason
+                };
+
+                // إذا تحولت الحالة إلى إجازة أو غياب أو تنسيب، نقوم بتفريغ وقت الانصراف
+                if (status === "غائب" || status === "مجاز" || status === "منسب") {
+                    updateData.exitTime = "";
+                }
+
+                await setDoc(doc(db, 'attendance', editingId), updateData, { merge: true });
+
+                alert("تم تحديث البيانات والحالة بنجاح إلى: " + status);
+                resetForm();
+            } else {
+                const q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", date));
+                if (!(await getDocs(q)).empty) { alert("الموظف مسجل بالفعل لهذا اليوم!"); return; }
+                
+                const targetDateObj = new Date(date);
+                const formattedDayName = targetDateObj.toLocaleDateString('ar-EG', {weekday: 'long', timeZone: 'Asia/Baghdad'});
+
+                await addDoc(collection(db, "attendance"), { 
+                    empCode: code, 
+                    name: empData.name, 
+                    status, 
+                    time: (status === "غائب" || status === "مجاز" || status === "منسب") ? "-" : timeInput, 
+                    exitTime: "", 
+                    date, 
+                    day: formattedDayName, 
+                    reason: reason 
+                });
+                
+                alert("تم التسجيل بنجاح كـ: " + status);
+                resetForm();
+            }
+            renderTable();
+        } catch (error) {
+            console.error("Error saving attendance:", error);
+            alert("حدث خطأ أثناء حفظ أو تحديث البيانات: " + error.message);
         }
-        renderTable();
     };
 
     function resetForm() {
@@ -242,8 +261,12 @@
 
     window.deleteAtt = async (id) => {
         if(confirm("هل أنت متأكد من حذف هذا السجل؟")) {
-            await deleteDoc(doc(db, 'attendance', id));
-            renderTable();
+            try {
+                await deleteDoc(doc(db, 'attendance', id));
+                renderTable();
+            } catch (error) {
+                alert("حدث خطأ أثناء الحذف: " + error.message);
+            }
         }
     };
 
