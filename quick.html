@@ -317,18 +317,15 @@
                 }
 
                 const empData = empSnap.data();
-                const isSkipped = empData.skipFaceCheck === true;
 
-                if (isSkipped) {
-                    await executeQuickRegistration(code, name, type, action);
-                } else {
-                    pendingQuickAction = { code, name, type, action, empData };
-                    document.getElementById('modalTitle').innerText = action === 'attendance' ? `📸 تسجيل حضور: ${name}` : `📸 تسجيل انصراف: ${name}`;
-                    document.getElementById('modalEmpPrompt').innerText = `يرجى توجيه الكاميرا نحو الموظف (${name}) ثم اضغط التقاط وتأكيد:`;
-                    document.getElementById('cameraModal').style.display = 'flex';
-                    currentFacingMode = "user";
-                    await startCamera(currentFacingMode);
-                }
+                // فتح نافذة الكاميرا لجميع الموظفين (بما فيهم المستثنين) تماماً مثل التسجيل الخارجي
+                pendingQuickAction = { code, name, type, action, empData };
+                document.getElementById('modalTitle').innerText = action === 'attendance' ? `📸 تسجيل حضور: ${name}` : `📸 تسجيل انصراف: ${name}`;
+                document.getElementById('modalEmpPrompt').innerText = `يرجى توجيه الكاميرا نحو الموظف (${name}) ثم اضغط التقاط وتأكيد:`;
+                document.getElementById('cameraModal').style.display = 'flex';
+                currentFacingMode = "user";
+                await startCamera(currentFacingMode);
+
             } catch (e) {
                 console.error(e);
                 alert("حدث خطأ أثناء الاتصال بقاعدة البيانات: " + e.message);
@@ -365,19 +362,27 @@
 
         const currentCapture = captureFaceData();
         const empDocRef = doc(db, "employees", code);
+        const isSkipped = empData.skipFaceCheck === true;
 
-        if (!empData.imageHash || empData.imageHash.trim() === "") {
-            await setDoc(empDocRef, { 
-                referenceFace: currentCapture.base64,
-                imageHash: currentCapture.hash 
-            }, { merge: true });
-            alert(`✨ تم التقاط وتسجيل بصمة الوجه للموظف (${name}) بنجاح لأول مرة!`);
-        } else {
-            const similarity = compareImageHashes(empData.imageHash, currentCapture.hash);
-            if (similarity < 82) {
-                alert(`❌ فشل التحقق! وجه الشخص الحالي لا يتطابق بدقة مع الموظف (${name}) [نسبة المطابقة: ${similarity.toFixed(1)}%].`);
-                return;
+        if (!isSkipped) {
+            if (!empData.imageHash || empData.imageHash.trim() === "") {
+                // إذا لم تكن هناك بصمة محفوظة مسبقاً، نقوم بحفظها كأول تسجيل
+                await setDoc(empDocRef, { 
+                    referenceFace: currentCapture.base64,
+                    imageHash: currentCapture.hash 
+                }, { merge: true });
+                alert(`✨ تم التقاط وتسجيل بصمة الوجه للموظف (${name}) بنجاح لأول مرة!`);
+            } else {
+                // التحقق من مطابقة الوجه للموظفين العاديين فقط
+                const similarity = compareImageHashes(empData.imageHash, currentCapture.hash);
+                if (similarity < 82) {
+                    alert(`❌ فشل التحقق! وجه الشخص الحالي لا يتطابق بدقة مع الموظف (${name}) [نسبة المطابقة: ${similarity.toFixed(1)}%].`);
+                    return;
+                }
             }
+        } else {
+            // للموظف المستثنى: نفتح الكاميرا للتحقق والمرور ولكننا لا نقوم بتثبيت أو تحديث بصمته الجديدة أبداً
+            console.log(`الموظف (${name}) مستثنى من بصمة الوجه: تم تخطي حفظ الصورة الجديدة.`);
         }
 
         document.getElementById('cameraModal').style.display = 'none';
