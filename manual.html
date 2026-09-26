@@ -100,7 +100,6 @@
         return "08:10";
     };
 
-    // تحديد كلاس اللون المناسب حسب الحالة
     const getStatusClass = (status) => {
         if (status === "حاضر") return "status-present";
         if (status === "متأخر") return "status-late";
@@ -131,7 +130,6 @@
             let data = attMap[emp.id];
             if (data) {
                 let rowClass = getStatusClass(data.status);
-                // قفل حقل الانصراف إذا كانت الحالة غير حاضر أو متأخر
                 let isLocked = (data.status === "مجاز" || data.status === "غائب" || data.status === "منسب");
                 let exitInputHtml = isLocked 
                     ? `<span style="color:#6c757d; font-weight:bold;">-</span>` 
@@ -191,30 +189,22 @@
         const empData = empSnap.data();
         let status = statusRaw;
         
+        // إذا تم اختيار حاضر أو متأخر، نتحقق من الوقت هل يستحق التأخير أم حاضر
         if (status === "حاضر" || status === "متأخر") {
             status = (timeInput > getLimit(empData.type, timeInput)) ? "متأخر" : "حاضر";
         }
 
-        // تفريغ وقت الانصراف تماماً إذا كانت الحالة الجديدة تتطلب قفله
-        let finalExitTime = "";
-
         if (editingId) {
-            // جلب البيانات القديمة لنتاكد
-            const oldDoc = await getDoc(doc(db, 'attendance', editingId));
-            if(oldDoc.exists()) {
-                finalExitTime = (status === "مجاز" || status === "غائب" || status === "منسب") ? "" : (oldDoc.data().exitTime || "");
-            }
-
             await setDoc(doc(db, 'attendance', editingId), {
                 empCode: code,
                 name: empData.name,
-                status,
+                status: status, // اعتماد الحالة المختارة بدقة
                 time: (status === "غائب" || status === "مجاز" || status === "منسب") ? "-" : timeInput,
-                exitTime: finalExitTime,
+                exitTime: (status === "غائب" || status === "مجاز" || status === "منسب") ? "" : undefined, // تفريغ وقت الانصراف في حال تحولت لحالة خاصة
                 reason: reason
-            }, { merge: true });
+            }, { merge: true, silent: true });
 
-            alert("تم تحديث البيانات والحالة بنجاح");
+            alert("تم تحديث البيانات والحالة بنجاح إلى: " + status);
             resetForm();
         } else {
             const q = query(collection(db, "attendance"), where("empCode", "==", code), where("date", "==", date));
